@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero de Solicitudes — Fotos de Producto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #16262A; --surface: #1E3236; --surface-2: #24393D;
+    --canvas: #CDB88C; --canvas-dim: #A9977B;
+    --ink: #EFE7D6; --ink-dim: #B9C4C2;
+    --rust: #C1541C; --rust-dim: #8C3E16;
+    --green: #5C8A63; --green-dim: #3F5F45;
+    --amber: #C99A2E; --amber-dim: #8A6A1F;
+    --gray: #6C7C7A; --gray-dim: #3E4D4B;
+    --line: #33484C; --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#0F1C1F;color:var(--ink);}
+  body{font-family:'IBM Plex Sans', sans-serif;font-size:15px;line-height:1.5;}
+  .app{max-width:720px;margin:0 auto;background:var(--bg);border:1px solid var(--line);min-height:100vh;}
+  header.top{padding:20px 20px 14px;border-bottom:2px solid var(--rust);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  header.top .htitle h1{font-family:'Archivo Expanded', sans-serif;font-weight:800;font-size:19px;margin:0;color:var(--canvas);}
+  header.top .htitle .tag{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+  header.top .whoami{font-size:12.5px;color:var(--ink-dim);text-align:right;}
+  header.top .whoami b{color:var(--canvas);}
+  header.top .btn-logout{background:none;border:1px solid var(--line);color:var(--ink-dim);font-size:11.5px;padding:4px 9px;border-radius:2px;cursor:pointer;margin-top:4px;}
+  nav.tabs{display:flex;border-bottom:1px solid var(--line);}
+  nav.tabs button{flex:1;padding:14px 8px;background:var(--surface);color:var(--ink-dim);border:none;border-right:1px solid var(--line);font-family:'IBM Plex Sans';font-size:13px;font-weight:600;cursor:pointer;}
+  nav.tabs button:last-child{border-right:none;}
+  nav.tabs button.active{background:var(--bg);color:var(--canvas);box-shadow:inset 0 -2px 0 var(--rust);}
+  main{padding:18px 20px 40px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;color:var(--ink-dim);margin-bottom:6px;}
+  input[type=text], input[type=password], textarea, select{
+    width:100%;background:var(--surface);border:1px solid var(--line);color:var(--ink);
+    padding:10px 11px;border-radius:var(--radius);font-family:'IBM Plex Sans';font-size:14.5px;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  input:focus, textarea:focus, select:focus, button:focus-visible{outline:2px solid var(--canvas);outline-offset:1px;}
+  .checkline{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:14px;color:var(--ink-dim);}
+  .checkline input{width:auto;}
+  .btn{display:inline-block;background:var(--rust);color:#fff;border:none;padding:11px 18px;border-radius:var(--radius);font-weight:600;font-size:14.5px;cursor:pointer;font-family:'IBM Plex Sans';}
+  .btn:hover{background:var(--rust-dim);}
+  .btn:disabled{opacity:0.5;cursor:default;}
+  .btn.secondary{background:transparent;color:var(--canvas);border:1px solid var(--canvas-dim);}
+  .btn.secondary:hover{background:var(--surface-2);}
+  .btn.small{padding:7px 12px;font-size:13px;}
+  .btn.block{display:block;width:100%;text-align:center;margin-bottom:10px;}
+  .filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .filters > *{flex:1 1 140px;}
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--rust);border-radius:var(--radius);padding:14px 16px;}
+  .card.done{border-left-color:var(--green);}
+  .card .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer;}
+  .card .numero{font-family:'Archivo Expanded';font-weight:800;font-size:12px;color:var(--canvas-dim);letter-spacing:0.02em;margin-bottom:2px;}
+  .card .producto{font-weight:600;font-size:15.5px;color:var(--ink);}
+  .card .meta{font-size:12.5px;color:var(--ink-dim);margin-top:3px;}
+  .status{font-size:11px;font-weight:600;padding:3px 8px;border-radius:2px;white-space:nowrap;background:var(--rust-dim);color:#F4E4D6;}
+  .status.done{background:var(--green-dim);color:#E1EEE2;}
+  .status.nofoto{background:var(--gray-dim);color:#D9E0DF;}
+  .status.rol{background:var(--surface-2);color:var(--canvas);border:1px solid var(--canvas-dim);}
+  .detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .detail p{margin:0 0 10px;color:var(--ink-dim);font-size:14px;}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .thumbs a img{width:76px;height:76px;object-fit:cover;border-radius:2px;border:1px solid var(--line);display:block;}
+  .upload-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+  .empty{text-align:center;color:var(--ink-dim);padding:40px 20px;font-size:14px;}
+  .hint{font-size:12px;color:var(--canvas-dim);margin-top:-8px;margin-bottom:16px;}
+  .warning{background:#3A2E17;border:1px solid var(--amber-dim);color:#F1DDA8;padding:12px 14px;border-radius:var(--radius);font-size:13.5px;margin-bottom:14px;}
+  .warning b{color:var(--amber);}
+  .actions-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--green-dim);color:#EAF3EA;padding:10px 16px;border-radius:var(--radius);font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50;}
+  .toast.show{opacity:1;}
+  .toast.error{background:#6E2E23;color:#F7DCD6;}
+  input[type=file]{color:var(--ink-dim);font-size:13px;}
+  .badge-count{display:inline-block;background:var(--rust);color:#fff;font-size:11px;padding:1px 6px;border-radius:8px;margin-left:5px;}
+  .gate{padding:40px 24px;text-align:center;}
+  .gate h2{font-family:'Archivo Expanded';color:var(--canvas);font-size:18px;margin-bottom:22px;}
+  .role-options{display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto;}
+  .role-options .btn{width:100%;}
+  .back-link{background:none;border:none;color:var(--ink-dim);font-size:13px;cursor:pointer;text-decoration:underline;margin-top:16px;}
+  .stats-grid{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .stat{flex:1 1 120px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;}
+  .stat .n{font-family:'Archivo Expanded';font-size:22px;font-weight:800;color:var(--canvas);}
+  .stat .l{font-size:11.5px;color:var(--ink-dim);margin-top:2px;}
+  .prod-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 13px;margin-bottom:8px;flex-wrap:wrap;}
+  .prod-row .pname{font-size:14px;}
+  .prod-row .porigen{font-size:11px;color:var(--ink-dim);margin-top:2px;}
+  .prod-row .pactions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .prod-row select{width:auto;padding:6px 8px;font-size:13px;}
+  h3.section{font-family:'Archivo Expanded';font-size:14px;color:var(--canvas-dim);margin:22px 0 12px;}
+  .gal-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(140px,1fr));gap:12px;}
+  .gal-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .gal-card img{width:100%;height:110px;object-fit:cover;display:block;background:var(--surface-2);}
+  .gal-card .gal-info{padding:8px 10px;}
+  .gal-card .gal-name{font-size:13px;font-weight:600;color:var(--ink);line-height:1.3;}
+  .gal-card .gal-cat{font-size:11px;color:var(--canvas-dim);margin-top:3px;}
+  .import-box{background:var(--surface);border:1px dashed var(--canvas-dim);border-radius:var(--radius);padding:14px;margin-bottom:6px;}
+  .import-box p{margin:0 0 10px;font-size:13px;color:var(--ink-dim);}
+  .import-box code{background:var(--surface-2);padding:1px 5px;border-radius:2px;font-size:12px;}
+  .connstate{position:fixed;top:10px;right:10px;font-size:11px;padding:4px 9px;border-radius:2px;background:var(--surface-2);color:var(--ink-dim);border:1px solid var(--line);z-index:50;}
+  .connstate.ok{color:var(--green);}
+  .connstate.bad{color:#E08A8A;}
+  .authform{max-width:300px;margin:0 auto;text-align:left;}
+</style>
+</head>
+<body>
+<div id="connstate" class="connstate">Conectando...</div>
+<div class="app">
+
+  <div id="gate" class="gate">
+    <h2>Tablero de Solicitudes</h2>
+    <div id="gateHome" class="role-options">
+      <button class="btn" id="goLogin">Iniciar sesión</button>
+      <button class="btn secondary" id="goRegistro">Solicitar acceso</button>
+    </div>
+
+    <div id="gateLogin" class="authform" style="display:none;">
+      <div class="field"><label>Usuario</label><input type="text" id="loginUsuario" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+      <button class="btn block" id="btnLogin">Entrar</button>
+      <div id="loginMsg" class="hint" style="color:#E08A8A;"></div>
+      <div style="text-align:center;"><button class="back-link" id="backFromLogin">Volver</button></div>
+    </div>
+
+    <div id="gateRegistro" class="authform" style="display:none;">
+      <div class="field"><label>Nombre completo</label><input type="text" id="regNombre"></div>
+      <div class="field"><label>Nombre de usuario</label><input type="text" id="regUsuario" autocomplete="username"></div>
+      <div class="field"><label>Contraseña (mínimo 6 caracteres)</label><input type="password" id="regPass" autocomplete="new-password"></div>
+      <button class="btn block" id="btnRegistro">Enviar solicitud de acceso</button>
+      <div id="regMsg" class="hint"></div>
+      <div style="text-align:center;"><button class="back-link" id="backFromRegistro">Volver</button></div>
+    </div>
+  </div>
+
+  <div id="shell" style="display:none;">
+    <header class="top">
+      <div class="htitle">
+        <h1>Solicitudes de Fotos</h1>
+        <div class="tag">Tablero compartido del equipo</div>
+      </div>
+      <div class="whoami">
+        <div><b id="whoName"></b></div>
+        <button class="btn-logout" id="btnLogout">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs"></nav>
+
+    <main>
+      <section id="viewNew">
+        <div class="field">
+          <label for="vendedora">Nombre de la vendedora</label>
+          <input type="text" id="vendedora" readonly>
+        </div>
+        <div class="field">
+          <label for="producto">Producto (código del catálogo)</label>
+          <input type="text" id="producto" list="productoList" placeholder="Escribe para buscar...">
+          <datalist id="productoList"></datalist>
+        </div>
+        <div id="warnBox"></div>
+        <div class="field">
+          <label for="detalle">Detalle / lo que necesita mostrar la foto</label>
+          <textarea id="detalle" placeholder="Ej: foto del sistema de amarre y del color gris grafito, con la camioneta puesta"></textarea>
+        </div>
+        <button class="btn" id="btnCrear">Enviar solicitud</button>
+        <div id="msgNew" class="hint" style="margin-top:10px;"></div>
+      </section>
+
+      <section id="viewMine" style="display:none;">
+        <div id="listMine" class="list"></div>
+        <div id="emptyMine" class="empty" style="display:none;">Todavía no tienes solicitudes.</div>
+      </section>
+
+      <section id="viewBoard" style="display:none;">
+        <div class="filters">
+          <select id="fVendedora"><option value="">Todas las vendedoras</option></select>
+          <select id="fEstado">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="completada">Completadas</option>
+          </select>
+          <input type="text" id="fBuscar" placeholder="Buscar producto...">
+        </div>
+        <div id="list" class="list"></div>
+        <div id="emptyMsg" class="empty" style="display:none;">No hay solicitudes que coincidan con el filtro.</div>
+      </section>
+
+      <section id="viewProductos" style="display:none;">
+        <div class="stats-grid">
+          <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Solicitudes totales</div></div>
+          <div class="stat"><div class="n" id="statPend">0</div><div class="l">Pendientes</div></div>
+          <div class="stat"><div class="n" id="statDone">0</div><div class="l">Completadas</div></div>
+          <div class="stat"><div class="n" id="statProd">0</div><div class="l">Códigos con foto</div></div>
+        </div>
+        <h3 class="section">Agregar código de producto al catálogo</h3>
+        <div class="field"><input type="text" id="prodManual" placeholder="Nombre o código del producto"></div>
+        <div class="field"><input type="text" id="prodCategoria" placeholder="Categoría / tipo de producto (ej: Lonas 4x2)"></div>
+        <div class="checkline"><input type="checkbox" id="prodTieneFoto"><label for="prodTieneFoto">Ya tiene foto</label></div>
+        <button class="btn small" id="btnAddProd">Agregar al catálogo</button>
+
+        <h3 class="section">Importar varios productos desde Excel/CSV</h3>
+        <div class="import-box">
+          <p>El archivo debe tener columnas con encabezados: <code>nombre</code> (obligatorio), <code>categoria</code> (opcional), <code>tiene_foto</code> (opcional: si/no).</p>
+          <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+        </div>
+        <div id="importMsg" class="hint"></div>
+
+        <h3 class="section">Catálogo de productos</h3>
+        <div id="prodList"></div>
+        <div id="emptyProd" class="empty" style="display:none;">Aún no hay productos en el catálogo.</div>
+      </section>
+
+      <section id="viewGaleria" style="display:none;">
+        <div class="filters">
+          <select id="fCategoria"><option value="">Todas las categorías</option></select>
+          <input type="text" id="fBuscarGaleria" placeholder="Buscar producto...">
+        </div>
+        <div id="galGrid" class="gal-grid"></div>
+        <div id="emptyGaleria" class="empty" style="display:none;">No hay fotos que coincidan con el filtro.</div>
+      </section>
+
+      <section id="viewUsuarios" style="display:none;">
+        <h3 class="section">Solicitudes de acceso pendientes</h3>
+        <div id="pendUsersList"></div>
+        <div id="emptyPendUsers" class="empty" style="display:none;">No hay solicitudes de acceso pendientes.</div>
+
+        <h3 class="section">Usuarios aprobados</h3>
+        <div id="approvedUsersList"></div>
+        <div id="emptyApprovedUsers" class="empty" style="display:none;">Todavía no hay usuarios aprobados.</div>
+
+        <h3 class="section">Rechazados</h3>
+        <div id="rejectedUsersList"></div>
+        <div id="emptyRejectedUsers" class="empty" style="display:none;">No hay usuarios rechazados.</div>
+      </section>
+    </main>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* ---------- FIREBASE ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDH40dDTcP1eAzfGin_MrU4gC9TD7A0Two",
+  authDomain: "lolaso-87abc.firebaseapp.com",
+  projectId: "lolaso-87abc",
+  storageBucket: "lolaso-87abc.firebasestorage.app",
+  messagingSenderId: "998346206931",
+  appId: "1:998346206931:web:d58bc267c3fd5675edee26"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+const EMAIL_DOMAIN = '@lonas-app.local';
+
+let data = { requests: [], productos: {}, usuarios: {} };
+let session = null; // { role, nombre, uid, usuario }
+let expandedId = null;
+let requestListenerStarted = false;
+let usersListenerStarted = false;
+
+function usuarioToEmail(u){ return u.trim().toLowerCase().replace(/\s+/g,'') + EMAIL_DOMAIN; }
+function normProd(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
+function padNum(n){ return '#' + String(n||0).padStart(4,'0'); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-CL', {day:'2-digit', month:'short'}) + ' · ' + d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(()=>{ t.classList.remove('show'); }, 2500);
+}
+function roleLabel(r){ return {vendedora:'Vendedora', encargado:'Encargado', admin:'Admin'}[r] || '(sin rol)'; }
+
+/* ---------- GATE NAV ---------- */
+document.getElementById('goLogin').addEventListener('click', ()=> switchGate('gateLogin'));
+document.getElementById('goRegistro').addEventListener('click', ()=> switchGate('gateRegistro'));
+document.getElementById('backFromLogin').addEventListener('click', ()=> switchGate('gateHome'));
+document.getElementById('backFromRegistro').addEventListener('click', ()=> switchGate('gateHome'));
+function switchGate(which){
+  ['gateHome','gateLogin','gateRegistro'].forEach(id=>{
+    document.getElementById(id).style.display = id===which ? (id==='gateHome' ? 'flex':'block') : 'none';
+  });
+}
+
+/* ---------- REGISTRO ---------- */
+document.getElementById('btnRegistro').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('regNombre').value.trim();
+  const usuario = document.getElementById('regUsuario').value.trim();
+  const pass = document.getElementById('regPass').value;
+  const msg = document.getElementById('regMsg');
+  msg.style.color = 'var(--canvas-dim)';
+  if(!nombre || !usuario || !pass){ msg.textContent = 'Completa todos los campos.'; return; }
+  if(pass.length < 6){ msg.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  try{
+    const cred = await auth.createUserWithEmailAndPassword(usuarioToEmail(usuario), pass);
+    await db.collection('usuarios').doc(cred.user.uid).set({
+      nombre, usuario: usuario.toLowerCase(), estado: 'pendiente', rol: null, fecha: new Date().toISOString()
+    });
+    await auth.signOut();
+    msg.textContent = 'Tu solicitud fue enviada. Espera a que el admin apruebe tu acceso y te asigne un rol.';
+    document.getElementById('regNombre').value='';
+    document.getElementById('regUsuario').value='';
+    document.getElementById('regPass').value='';
+  }catch(e){
+    msg.style.color = '#E08A8A';
+    if(e.code === 'auth/email-already-in-use') msg.textContent = 'Ese nombre de usuario ya está en uso.';
+    else if(e.code === 'auth/weak-password') msg.textContent = 'La contraseña es muy débil (mínimo 6 caracteres).';
+    else msg.textContent = 'No se pudo enviar la solicitud. Intenta de nuevo.';
+    console.error(e);
+  }
+});
+
+/* ---------- LOGIN ---------- */
+document.getElementById('btnLogin').addEventListener('click', async ()=>{
+  const usuario = document.getElementById('loginUsuario').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const msg = document.getElementById('loginMsg');
+  msg.textContent = '';
+  if(!usuario || !pass){ msg.textContent = 'Ingresa usuario y contraseña.'; return; }
+  try{
+    const cred = await auth.signInWithEmailAndPassword(usuarioToEmail(usuario), pass);
+    const docSnap = await db.collection('usuarios').doc(cred.user.uid).get();
+    if(!docSnap.exists){ await auth.signOut(); msg.textContent = 'Cuenta no encontrada.'; return; }
+    const u = docSnap.data();
+    if(u.estado === 'pendiente'){ await auth.signOut(); msg.textContent = 'Tu cuenta aún está pendiente de aprobación.'; return; }
+    if(u.estado === 'rechazado'){ await auth.signOut(); msg.textContent = 'Tu solicitud de acceso fue rechazada. Habla con el admin.'; return; }
+    session = { role: u.rol, nombre: u.nombre, uid: cred.user.uid, usuario: u.usuario };
+    document.getElementById('loginUsuario').value='';
+    document.getElementById('loginPass').value='';
+    startApp();
+  }catch(e){
+    msg.textContent = 'Usuario o contraseña incorrectos.';
+  }
+});
+
+/* ---------- SESIÓN PERSISTENTE ---------- */
+auth.onAuthStateChanged(async (user)=>{
+  if(!user || session) return;
+  try{
+    const docSnap = await db.collection('usuarios').doc(user.uid).get();
+    if(docSnap.exists && docSnap.data().estado === 'aprobado'){
+      const u = docSnap.data();
+      session = { role: u.rol, nombre: u.nombre, uid: user.uid, usuario: u.usuario };
+      startApp();
+    }
+  }catch(e){ /* se queda en la pantalla de login */ }
+});
+
+document.getElementById('btnLogout').addEventListener('click', async ()=>{
+  await auth.signOut();
+  session = null;
+  document.getElementById('shell').style.display='none';
+  document.getElementById('gate').style.display='block';
+  switchGate('gateHome');
+});
+
+/* ---------- FIRESTORE LISTENERS (tiempo real) ---------- */
+function startDataListeners(){
+  if(requestListenerStarted) return;
+  requestListenerStarted = true;
+  db.collection('requests').onSnapshot(snap=>{
+    data.requests = snap.docs.map(d=>({ id: d.id, ...d.data() }));
+    refreshAll();
+    setConn(true);
+  }, err=>{ setConn(false, err); });
+
+  db.collection('productos').onSnapshot(snap=>{
+    const map = {};
+    snap.docs.forEach(d=>{ map[d.id] = d.data(); });
+    data.productos = map;
+    refreshAll();
+    setConn(true);
+  }, err=>{ setConn(false, err); });
+}
+function startUsersListener(){
+  if(usersListenerStarted) return;
+  usersListenerStarted = true;
+  db.collection('usuarios').onSnapshot(snap=>{
+    const map = {};
+    snap.docs.forEach(d=>{ map[d.id] = d.data(); });
+    data.usuarios = map;
+    if(session && session.role === 'admin') renderUsuarios();
+  });
+}
+
+function setConn(ok, err){
+  const el = document.getElementById('connstate');
+  if(ok){ el.textContent = 'Conectado'; el.className = 'connstate ok'; setTimeout(()=>{ el.style.display='none'; }, 1500); }
+  else{ el.style.display='block'; el.textContent = 'Sin conexión con la base de datos'; el.className = 'connstate bad'; if(err) console.error(err); }
+}
+
+async function siguienteNumero(){
+  const ref = db.collection('meta').doc('counter');
+  return db.runTransaction(async (t)=>{
+    const snap = await t.get(ref);
+    const current = snap.exists ? (snap.data().nextNumero || 1) : 1;
+    t.set(ref, { nextNumero: current + 1 });
+    return current;
+  });
+}
+
+function resizeImage(file, maxW){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > maxW){ h = Math.round(h * (maxW / w)); w = maxW; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------- APP START ---------- */
+function startApp(){
+  document.getElementById('gate').style.display='none';
+  document.getElementById('shell').style.display='block';
+  document.getElementById('whoName').textContent = session.nombre + ' · ' + roleLabel(session.role);
+  buildTabs();
+  startDataListeners();
+  if(session.role === 'admin') startUsersListener();
+  refreshAll();
+}
+
+function buildTabs(){
+  const tabs = document.getElementById('tabs');
+  if(session.role === 'vendedora'){
+    tabs.innerHTML = `<button id="tabNew" class="active">Nueva solicitud</button><button id="tabMine">Mis solicitudes</button><button id="tabGaleria">Galería</button>`;
+    document.getElementById('tabNew').addEventListener('click', ()=>setTab('new'));
+    document.getElementById('tabMine').addEventListener('click', ()=>{ setTab('mine'); renderMine(); });
+    document.getElementById('tabGaleria').addEventListener('click', ()=>{ setTab('galeria'); renderGaleria(); });
+    setTab('new');
+    document.getElementById('vendedora').value = session.nombre;
+  } else {
+    let html = `<button id="tabBoard" class="active">Tablero <span id="pendCount" class="badge-count" style="display:none">0</span></button><button id="tabGaleria">Galería</button>`;
+    if(session.role === 'admin'){
+      html += `<button id="tabProd">Productos</button>`;
+      html += `<button id="tabUsuarios">Usuarios <span id="pendUsersBadge" class="badge-count" style="display:none">0</span></button>`;
+    }
+    tabs.innerHTML = html;
+    document.getElementById('tabBoard').addEventListener('click', ()=>{ setTab('board'); renderList(); });
+    document.getElementById('tabGaleria').addEventListener('click', ()=>{ setTab('galeria'); renderGaleria(); });
+    if(session.role === 'admin'){
+      document.getElementById('tabProd').addEventListener('click', ()=>{ setTab('prod'); renderProductos(); });
+      document.getElementById('tabUsuarios').addEventListener('click', ()=>{ setTab('usuarios'); renderUsuarios(); });
+    }
+    setTab('board');
+  }
+}
+
+function setTab(which){
+  document.getElementById('viewNew').style.display = which==='new' ? 'block':'none';
+  document.getElementById('viewMine').style.display = which==='mine' ? 'block':'none';
+  document.getElementById('viewBoard').style.display = which==='board' ? 'block':'none';
+  document.getElementById('viewProductos').style.display = which==='prod' ? 'block':'none';
+  document.getElementById('viewUsuarios').style.display = which==='usuarios' ? 'block':'none';
+  document.getElementById('viewGaleria').style.display = which==='galeria' ? 'block':'none';
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  const map = {new:'tabNew', mine:'tabMine', board:'tabBoard', prod:'tabProd', usuarios:'tabUsuarios', galeria:'tabGaleria'};
+  document.getElementById(map[which])?.classList.add('active');
+}
+
+function refreshAll(){
+  if(!session) return;
+  refreshVendedoraOptions();
+  refreshProductoOptions();
+  if(document.getElementById('viewGaleria').style.display !== 'none') renderGaleria();
+  if(session.role === 'vendedora'){
+    if(document.getElementById('viewMine').style.display !== 'none') renderMine();
+  } else {
+    if(document.getElementById('viewBoard').style.display !== 'none') renderList();
+    if(session.role === 'admin' && document.getElementById('viewProductos').style.display !== 'none') renderProductos();
+    updatePendBadge();
+  }
+}
+
+/* ---------- CATÁLOGO: opciones del datalist ---------- */
+function refreshProductoOptions(){
+  const dl = document.getElementById('productoList');
+  if(!dl) return;
+  const keys = Object.keys(data.productos).sort((a,b)=>
+    (data.productos[a].nombreOriginal||'').localeCompare(data.productos[b].nombreOriginal||'')
+  );
+  dl.innerHTML = keys.map(k=>`<option value="${escapeHtml(data.productos[k].nombreOriginal)}">${data.productos[k].tieneFoto ? 'ya tiene foto' : ''}</option>`).join('');
+  checkProductWarning();
+}
+
+/* ---------- GALERÍA ---------- */
+function refreshCategoriaOptions(){
+  const sel = document.getElementById('fCategoria');
+  if(!sel) return;
+  const current = sel.value;
+  const cats = Array.from(new Set(Object.values(data.productos).map(p=>p.categoria).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">Todas las categorías</option>' + cats.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if(cats.includes(current)) sel.value = current;
+}
+
+function renderGaleria(){
+  refreshCategoriaOptions();
+  const fCat = document.getElementById('fCategoria').value;
+  const fBuscar = (document.getElementById('fBuscarGaleria').value || '').trim().toLowerCase();
+
+  const items = Object.entries(data.productos).filter(([,p])=>{
+    if(!p.tieneFoto || !(p.fotos||[]).length) return false;
+    if(fCat && p.categoria !== fCat) return false;
+    if(fBuscar && !(p.nombreOriginal||'').toLowerCase().includes(fBuscar)) return false;
+    return true;
+  }).sort((a,b)=> (a[1].nombreOriginal||'').localeCompare(b[1].nombreOriginal||''));
+
+  const grid = document.getElementById('galGrid');
+  const empty = document.getElementById('emptyGaleria');
+  if(!items.length){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  grid.innerHTML = items.map(([,p])=>{
+    const foto = p.fotos[0];
+    return `<div class="gal-card">
+      <a href="${foto}" target="_blank"><img src="${foto}"></a>
+      <div class="gal-info">
+        <div class="gal-name">${escapeHtml(p.nombreOriginal)}</div>
+        ${p.categoria ? `<div class="gal-cat">${escapeHtml(p.categoria)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('fCategoria')?.addEventListener('change', renderGaleria);
+document.getElementById('fBuscarGaleria')?.addEventListener('input', renderGaleria);
+
+/* ---------- VENDEDORA: nueva solicitud ---------- */
+document.getElementById('producto').addEventListener('input', checkProductWarning);
+
+function checkProductWarning(){
+  const box = document.getElementById('warnBox');
+  const key = normProd(document.getElementById('producto').value || '');
+  if(!key){ box.innerHTML=''; return; }
+  const p = data.productos[key];
+  if(p && p.tieneFoto){
+    box.innerHTML = `<div class="warning"><b>Este producto ya tiene foto registrada</b> (desde ${fmtDate(p.fecha)}). Mejor escríbele directamente a Yisus en vez de mandar la solicitud — así es más rápido.</div>`;
+  } else {
+    box.innerHTML = '';
+  }
+}
+
+async function crearSolicitud(){
+  const vendedora = session.nombre;
+  const key = normProd(document.getElementById('producto').value || '');
+  const detalle = document.getElementById('detalle').value.trim();
+  const msg = document.getElementById('msgNew');
+  const btn = document.getElementById('btnCrear');
+  if(!key || !data.productos[key]){ msg.textContent = 'Escribe y elige un producto que exista en el catálogo (empieza a escribir para ver las opciones).'; return; }
+  const producto = data.productos[key].nombreOriginal;
+
+  btn.disabled = true;
+  try{
+    const numero = await siguienteNumero();
+    const nueva = {
+      numero, vendedora, producto, detalle,
+      fecha: new Date().toISOString(),
+      estado: 'pendiente',
+      fotos: [],
+      atendidoPor: null
+    };
+    await db.collection('requests').add(nueva);
+    msg.textContent = `Solicitud ${padNum(numero)} enviada. El equipo la verá en el Tablero.`;
+    document.getElementById('producto').value='';
+    document.getElementById('detalle').value='';
+    document.getElementById('warnBox').innerHTML='';
+  }catch(e){
+    msg.textContent = 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.';
+    console.error(e);
+  }
+  btn.disabled = false;
+}
+document.getElementById('btnCrear').addEventListener('click', crearSolicitud);
+
+/* ---------- VENDEDORA: mis solicitudes ---------- */
+function renderMine(){
+  const mine = data.requests.filter(r=>(r.vendedora||'').trim().toLowerCase() === session.nombre.trim().toLowerCase())
+    .sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  const el = document.getElementById('listMine');
+  const empty = document.getElementById('emptyMine');
+  if(!mine.length){ el.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  el.innerHTML = mine.map(r=>{
+    const done = r.estado==='completada';
+    return `<div class="card ${done?'done':''}">
+      <div class="row1">
+        <div>
+          <div class="numero">${padNum(r.numero)}</div>
+          <div class="producto">${escapeHtml(r.producto)}</div>
+          <div class="meta">${fmtDate(r.fecha)}</div>
+        </div>
+        <span class="status ${done?'done':''}">${done?'Completada':'Pendiente'}</span>
+      </div>
+      ${done && (r.fotos||[]).length ? `<div class="thumbs">${r.fotos.map(f=>`<a href="${f}" target="_blank"><img src="${f}"></a>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* ---------- ENCARGADO / ADMIN: tablero ---------- */
+function distinctVendedoras(){
+  return Array.from(new Set(data.requests.map(r=>r.vendedora).filter(Boolean))).sort();
+}
+function refreshVendedoraOptions(){
+  const list = distinctVendedoras();
+  const sel = document.getElementById('fVendedora');
+  if(sel){
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Todas las vendedoras</option>' + list.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    sel.value = current;
+  }
+}
+
+function updatePendBadge(){
+  const pendientes = data.requests.filter(r=>r.estado==='pendiente').length;
+  const badge = document.getElementById('pendCount');
+  if(badge){ if(pendientes>0){ badge.style.display='inline-block'; badge.textContent=pendientes; } else badge.style.display='none'; }
+}
+
+function renderList(){
+  const fVend = document.getElementById('fVendedora').value;
+  const fEstado = document.getElementById('fEstado').value;
+  const fBuscar = document.getElementById('fBuscar').value.trim().toLowerCase();
+
+  let items = data.requests.filter(r=>{
+    if(fVend && r.vendedora !== fVend) return false;
+    if(fEstado && r.estado !== fEstado) return false;
+    if(fBuscar && !(r.producto||'').toLowerCase().includes(fBuscar)) return false;
+    return true;
+  });
+  items.sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  updatePendBadge();
+
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('emptyMsg');
+  if(!items.length){ listEl.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+
+  listEl.innerHTML = items.map(r=>{
+    const isOpen = expandedId === r.id;
+    const done = r.estado==='completada';
+    return `<div class="card ${done?'done':''}" data-id="${r.id}">
+      <div class="row1" data-toggle="${r.id}">
+        <div>
+          <div class="numero">${padNum(r.numero)}</div>
+          <div class="producto">${escapeHtml(r.producto)}</div>
+          <div class="meta">${escapeHtml(r.vendedora)} · ${fmtDate(r.fecha)}${r.atendidoPor ? ' · atendida por '+escapeHtml(r.atendidoPor) : ''}</div>
+        </div>
+        <span class="status ${done?'done':''}">${done?'Completada':'Pendiente'}</span>
+      </div>
+      ${isOpen ? renderDetail(r) : ''}
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('[data-toggle]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.getAttribute('data-toggle');
+      expandedId = expandedId === id ? null : id;
+      renderList();
+    });
+  });
+  listEl.querySelectorAll('.file-input').forEach(el=> el.addEventListener('change', handleFileUpload));
+  listEl.querySelectorAll('.btn-reabrir').forEach(el=> el.addEventListener('click', e=>{ e.stopPropagation(); reabrirSolicitud(el.dataset.id); }));
+  listEl.querySelectorAll('.btn-eliminar').forEach(el=> el.addEventListener('click', e=>{ e.stopPropagation(); eliminarSolicitud(el.dataset.id); }));
+}
+
+function renderDetail(r){
+  const fotos = r.fotos || [];
+  return `<div class="detail" onclick="event.stopPropagation()">
+      ${r.detalle ? `<p>${escapeHtml(r.detalle)}</p>` : ''}
+      ${fotos.length ? `<div class="thumbs">${fotos.map(f=>`<a href="${f}" target="_blank"><img src="${f}"></a>`).join('')}</div>` : ''}
+      <div class="upload-row"><input type="file" class="file-input" data-id="${r.id}" accept="image/*" multiple></div>
+      <div class="actions-row">
+        ${r.estado==='completada' ? `<button class="btn secondary small btn-reabrir" data-id="${r.id}">Reabrir</button>` : ''}
+        <button class="btn secondary small btn-eliminar" data-id="${r.id}">Eliminar</button>
+      </div>
+    </div>`;
+}
+
+async function handleFileUpload(e){
+  const id = e.target.getAttribute('data-id');
+  const files = Array.from(e.target.files || []);
+  if(!files.length) return;
+  e.target.disabled = true;
+  try{
+    const dataUrls = await Promise.all(files.map(f=>resizeImage(f, 1100)));
+    const r = data.requests.find(x=>x.id===id);
+    if(!r) return;
+    const fotosFinal = (r.fotos||[]).concat(dataUrls);
+    const fechaCompletada = new Date().toISOString();
+
+    await db.collection('requests').doc(id).update({
+      fotos: fotosFinal,
+      estado: 'completada',
+      fechaCompletada,
+      atendidoPor: session.nombre
+    });
+
+    const key = normProd(r.producto);
+    const fotosProductoPrevias = (data.productos[key] && data.productos[key].fotos) || [];
+    await db.collection('productos').doc(key).set({
+      nombreOriginal: (data.productos[key] && data.productos[key].nombreOriginal) || r.producto,
+      tieneFoto: true,
+      fecha: fechaCompletada,
+      origen: (data.productos[key] && data.productos[key].origen) || 'auto',
+      fotos: fotosProductoPrevias.concat(dataUrls)
+    }, { merge: true });
+
+    showToast(`Fotos subidas para ${padNum(r.numero)} · enviadas a ${r.vendedora}`);
+  }catch(err){
+    showToast('No se pudo subir la foto. Revisa tu conexión.', true);
+    console.error(err);
+  }
+  e.target.disabled = false;
+}
+
+async function reabrirSolicitud(id){
+  try{ await db.collection('requests').doc(id).update({ estado: 'pendiente' }); }
+  catch(e){ showToast('No se pudo actualizar.', true); }
+}
+async function eliminarSolicitud(id){
+  if(!confirm('¿Eliminar esta solicitud?')) return;
+  try{ await db.collection('requests').doc(id).delete(); }
+  catch(e){ showToast('No se pudo eliminar.', true); }
+}
+
+document.getElementById('fVendedora')?.addEventListener('change', renderList);
+document.getElementById('fEstado')?.addEventListener('change', renderList);
+document.getElementById('fBuscar')?.addEventListener('input', renderList);
+
+/* ---------- ADMIN: catálogo de productos ---------- */
+function renderProductos(){
+  document.getElementById('statTotal').textContent = data.requests.length;
+  document.getElementById('statPend').textContent = data.requests.filter(r=>r.estado==='pendiente').length;
+  document.getElementById('statDone').textContent = data.requests.filter(r=>r.estado==='completada').length;
+  const allKeys = Object.keys(data.productos);
+  document.getElementById('statProd').textContent = allKeys.filter(k=>data.productos[k].tieneFoto).length;
+
+  const listEl = document.getElementById('prodList');
+  const emptyEl = document.getElementById('emptyProd');
+  if(!allKeys.length){ listEl.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+  const sorted = allKeys.sort((a,b)=> (data.productos[a].nombreOriginal||'').localeCompare(data.productos[b].nombreOriginal||''));
+  listEl.innerHTML = sorted.map(k=>{
+    const p = data.productos[k];
+    return `<div class="prod-row">
+      <div>
+        <div class="pname">${escapeHtml(p.nombreOriginal)} <span class="status ${p.tieneFoto?'done':'nofoto'}" style="margin-left:6px;">${p.tieneFoto?'Con foto':'Sin foto'}</span></div>
+        <div class="porigen">${p.categoria ? escapeHtml(p.categoria) + ' · ' : ''}${p.origen==='manual' ? 'Agregado manualmente' : p.origen==='importado' ? 'Importado desde archivo' : 'Detectado desde una solicitud'} · ${fmtDate(p.fecha)}</div>
+      </div>
+      <div class="pactions">
+        <button class="btn secondary small btn-toggle-prod" data-k="${escapeHtml(k)}" data-val="${p.tieneFoto ? 'false' : 'true'}">${p.tieneFoto ? 'Quitar marca' : 'Marcar con foto'}</button>
+        <button class="btn secondary small btn-del-prod" data-k="${escapeHtml(k)}">Quitar del catálogo</button>
+      </div>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.btn-del-prod').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      if(!confirm('¿Quitar este producto del catálogo? Las vendedoras ya no podrán seleccionarlo.')) return;
+      try{ await db.collection('productos').doc(b.getAttribute('data-k')).delete(); }
+      catch(e){ showToast('No se pudo quitar.', true); }
+    });
+  });
+  listEl.querySelectorAll('.btn-toggle-prod').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const key = b.getAttribute('data-k');
+      const nuevoValor = b.getAttribute('data-val') === 'true';
+      try{
+        await db.collection('productos').doc(key).set({ tieneFoto: nuevoValor, fecha: new Date().toISOString() }, { merge: true });
+      }catch(e){ showToast('No se pudo actualizar.', true); }
+    });
+  });
+}
+
+document.getElementById('btnAddProd')?.addEventListener('click', async ()=>{
+  const input = document.getElementById('prodManual');
+  const catInput = document.getElementById('prodCategoria');
+  const checkbox = document.getElementById('prodTieneFoto');
+  const nombre = input.value.trim();
+  const categoria = catInput.value.trim();
+  if(!nombre) return;
+  const key = normProd(nombre);
+  if(data.productos[key]){ showToast('Ese código ya existe en el catálogo.', true); return; }
+  try{
+    await db.collection('productos').doc(key).set({
+      nombreOriginal: nombre, categoria: categoria || null, tieneFoto: checkbox.checked, fecha: new Date().toISOString(), origen: 'manual', fotos: []
+    });
+    input.value=''; catInput.value=''; checkbox.checked = false;
+    showToast('Producto agregado al catálogo.');
+  }catch(e){ showToast('No se pudo agregar.', true); }
+});
+
+/* ---------- ADMIN: importación masiva desde Excel/CSV ---------- */
+document.getElementById('importFile')?.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const msg = document.getElementById('importMsg');
+  msg.textContent = 'Leyendo archivo...';
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if(!rows.length){ msg.textContent = 'El archivo no tiene filas de datos.'; return; }
+
+    const norm = (obj)=>{
+      const out = {};
+      Object.keys(obj).forEach(k=> out[k.toString().trim().toLowerCase()] = obj[k]);
+      return out;
+    };
+
+    let agregados = 0, omitidos = 0, sinNombre = 0;
+    let batch = db.batch();
+    let opsEnBatch = 0;
+
+    for(const rawRow of rows){
+      const row = norm(rawRow);
+      const nombre = (row['nombre'] || '').toString().trim();
+      if(!nombre){ sinNombre++; continue; }
+      const key = normProd(nombre);
+      if(data.productos[key]){ omitidos++; continue; }
+      const categoria = (row['categoria'] || '').toString().trim();
+      const tieneFotoRaw = (row['tiene_foto'] || '').toString().trim().toLowerCase();
+      const tieneFoto = ['si','sí','true','1','x'].includes(tieneFotoRaw);
+
+      const ref = db.collection('productos').doc(key);
+      batch.set(ref, {
+        nombreOriginal: nombre,
+        categoria: categoria || null,
+        tieneFoto,
+        fecha: new Date().toISOString(),
+        origen: 'importado',
+        fotos: []
+      });
+      opsEnBatch++;
+      agregados++;
+      data.productos[key] = { nombreOriginal: nombre }; // evita duplicados dentro del mismo archivo
+
+      if(opsEnBatch >= 450){
+        await batch.commit();
+        batch = db.batch();
+        opsEnBatch = 0;
+      }
+    }
+    if(opsEnBatch > 0) await batch.commit();
+
+    msg.textContent = `Listo: ${agregados} agregados, ${omitidos} ya existían (omitidos)${sinNombre ? `, ${sinNombre} filas sin nombre (omitidas)` : ''}.`;
+    showToast(`${agregados} productos importados.`);
+  }catch(err){
+    msg.textContent = 'No se pudo leer o importar el archivo.';
+    console.error(err);
+  }
+  e.target.value = '';
+});
+
+/* ---------- ADMIN: usuarios (registro y roles) ---------- */
+function renderUsuarios(){
+  const entries = Object.entries(data.usuarios); // [uid, {nombre,usuario,estado,rol,fecha}]
+  const pendientes = entries.filter(([,u])=>u.estado==='pendiente');
+  const aprobados = entries.filter(([,u])=>u.estado==='aprobado');
+  const rechazados = entries.filter(([,u])=>u.estado==='rechazado');
+
+  const badge = document.getElementById('pendUsersBadge');
+  if(pendientes.length){ badge.style.display='inline-block'; badge.textContent = pendientes.length; } else badge.style.display='none';
+
+  const pendEl = document.getElementById('pendUsersList');
+  const pendEmpty = document.getElementById('emptyPendUsers');
+  if(!pendientes.length){ pendEl.innerHTML=''; pendEmpty.style.display='block'; }
+  else{
+    pendEmpty.style.display='none';
+    pendEl.innerHTML = pendientes.map(([uid,u])=>`
+      <div class="prod-row">
+        <div>
+          <div class="pname">${escapeHtml(u.nombre)} <span class="hint" style="margin:0;">@${escapeHtml(u.usuario)}</span></div>
+          <div class="porigen">Solicitó acceso el ${fmtDate(u.fecha)}</div>
+        </div>
+        <div class="pactions">
+          <select data-uid="${uid}" class="sel-rol-nuevo">
+            <option value="vendedora">Vendedora</option>
+            <option value="encargado">Encargado</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button class="btn small btn-aprobar" data-uid="${uid}">Aprobar</button>
+          <button class="btn secondary small btn-rechazar" data-uid="${uid}">Rechazar</button>
+        </div>
+      </div>`).join('');
+    pendEl.querySelectorAll('.btn-aprobar').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const uid = b.getAttribute('data-uid');
+        const rol = pendEl.querySelector(`.sel-rol-nuevo[data-uid="${uid}"]`).value;
+        try{ await db.collection('usuarios').doc(uid).update({ estado:'aprobado', rol }); showToast('Usuario aprobado.'); }
+        catch(e){ showToast('No se pudo aprobar.', true); }
+      });
+    });
+    pendEl.querySelectorAll('.btn-rechazar').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const uid = b.getAttribute('data-uid');
+        try{ await db.collection('usuarios').doc(uid).update({ estado:'rechazado', rol:null }); showToast('Solicitud rechazada.'); }
+        catch(e){ showToast('No se pudo rechazar.', true); }
+      });
+    });
+  }
+
+  const apEl = document.getElementById('approvedUsersList');
+  const apEmpty = document.getElementById('emptyApprovedUsers');
+  if(!aprobados.length){ apEl.innerHTML=''; apEmpty.style.display='block'; }
+  else{
+    apEmpty.style.display='none';
+    apEl.innerHTML = aprobados.map(([uid,u])=>`
+      <div class="prod-row">
+        <div>
+          <div class="pname">${escapeHtml(u.nombre)} <span class="status rol" style="margin-left:6px;">${roleLabel(u.rol)}</span></div>
+          <div class="porigen">@${escapeHtml(u.usuario)}</div>
+        </div>
+        <div class="pactions">
+          <select data-uid="${uid}" class="sel-rol-cambio">
+            <option value="vendedora" ${u.rol==='vendedora'?'selected':''}>Vendedora</option>
+            <option value="encargado" ${u.rol==='encargado'?'selected':''}>Encargado</option>
+            <option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option>
+          </select>
+          <button class="btn secondary small btn-revocar" data-uid="${uid}">Revocar acceso</button>
+        </div>
+      </div>`).join('');
+    apEl.querySelectorAll('.sel-rol-cambio').forEach(sel=>{
+      sel.addEventListener('change', async ()=>{
+        const uid = sel.getAttribute('data-uid');
+        try{ await db.collection('usuarios').doc(uid).update({ rol: sel.value }); showToast('Rol actualizado.'); }
+        catch(e){ showToast('No se pudo cambiar el rol.', true); }
+      });
+    });
+    apEl.querySelectorAll('.btn-revocar').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        if(!confirm('¿Revocar el acceso de este usuario?')) return;
+        const uid = b.getAttribute('data-uid');
+        try{ await db.collection('usuarios').doc(uid).update({ estado:'rechazado' }); showToast('Acceso revocado.'); }
+        catch(e){ showToast('No se pudo revocar.', true); }
+      });
+    });
+  }
+
+  const reEl = document.getElementById('rejectedUsersList');
+  const reEmpty = document.getElementById('emptyRejectedUsers');
+  if(!rechazados.length){ reEl.innerHTML=''; reEmpty.style.display='block'; }
+  else{
+    reEmpty.style.display='none';
+    reEl.innerHTML = rechazados.map(([uid,u])=>`
+      <div class="prod-row">
+        <div>
+          <div class="pname">${escapeHtml(u.nombre)}</div>
+          <div class="porigen">@${escapeHtml(u.usuario)}</div>
+        </div>
+        <button class="btn secondary small btn-reconsiderar" data-uid="${uid}">Reconsiderar</button>
+      </div>`).join('');
+    reEl.querySelectorAll('.btn-reconsiderar').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const uid = b.getAttribute('data-uid');
+        try{ await db.collection('usuarios').doc(uid).update({ estado:'pendiente' }); showToast('Vuelto a solicitudes pendientes.'); }
+        catch(e){ showToast('No se pudo actualizar.', true); }
+      });
+    });
+  }
+}
+</script>
+</body>
+</html>
