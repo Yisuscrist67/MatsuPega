@@ -219,6 +219,16 @@
         <div id="emptyProd" class="empty" style="display:none;">Aún no hay productos en el catálogo.</div>
       </section>
 
+      <section id="viewDrive" style="display:none;">
+        <div class="filters">
+          <select id="fDriveCarpeta"><option value="">Cargando carpetas...</option></select>
+          <input type="text" id="fDriveBuscar" placeholder="Buscar por nombre de archivo...">
+        </div>
+        <div id="driveMsg" class="hint"></div>
+        <div id="driveGrid" class="gal-grid"></div>
+        <div id="emptyDrive" class="empty" style="display:none;">No hay fotos en esta carpeta.</div>
+      </section>
+
       <section id="viewGaleria" style="display:none;">
         <div class="filters">
           <select id="fCategoria"><option value="">Todas las categorías</option></select>
@@ -260,6 +270,83 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 const EMAIL_DOMAIN = '@lonas-app.local';
+
+/* ---------- GOOGLE DRIVE (solo lectura, carpeta pública) ---------- */
+const DRIVE_API_KEY = 'AIzaSyAlw7VuQR-prD_xmc2-Iwp2svaEXkYRSCs';
+const DRIVE_ROOT_FOLDER_ID = '1drbu3VWlTKDKqUH8-bKAghXi8RIQgwid';
+let driveFolders = null;   // [{id,name}] subcarpetas de la carpeta principal
+let driveFiles = [];       // fotos de la carpeta seleccionada
+
+async function driveList(q, fields){
+  const url = 'https://www.googleapis.com/drive/v3/files?pageSize=200&orderBy=name'
+    + '&q=' + encodeURIComponent(q)
+    + '&fields=' + encodeURIComponent(fields)
+    + '&key=' + DRIVE_API_KEY;
+  const res = await fetch(url);
+  if(!res.ok){
+    const txt = await res.text();
+    throw new Error('Drive ' + res.status + ': ' + txt);
+  }
+  return (await res.json()).files || [];
+}
+
+async function initDrive(){
+  const sel = document.getElementById('fDriveCarpeta');
+  const msg = document.getElementById('driveMsg');
+  if(driveFolders){ return; }
+  msg.textContent = 'Cargando carpetas de Drive...';
+  try{
+    driveFolders = await driveList(
+      `'${DRIVE_ROOT_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      'files(id,name)'
+    );
+    let html = '<option value="' + DRIVE_ROOT_FOLDER_ID + '">(Carpeta principal)</option>';
+    html += driveFolders.map(f=>`<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`).join('');
+    sel.innerHTML = html;
+    msg.textContent = '';
+    loadDriveFiles(sel.value);
+  }catch(e){
+    console.error(e);
+    msg.style.color = '#E08A8A';
+    msg.textContent = 'No se pudo leer Drive. Revisa que la carpeta sea pública y que la clave de API tenga habilitada la API de Drive.';
+  }
+}
+
+async function loadDriveFiles(folderId){
+  const msg = document.getElementById('driveMsg');
+  msg.style.color = '';
+  msg.textContent = 'Cargando fotos...';
+  try{
+    driveFiles = await driveList(
+      `'${folderId}' in parents and mimeType contains 'image/' and trashed=false`,
+      'files(id,name)'
+    );
+    msg.textContent = '';
+    renderDrive();
+  }catch(e){
+    console.error(e);
+    msg.style.color = '#E08A8A';
+    msg.textContent = 'No se pudieron cargar las fotos de esta carpeta.';
+  }
+}
+
+function renderDrive(){
+  const q = (document.getElementById('fDriveBuscar').value || '').trim().toLowerCase();
+  const items = driveFiles.filter(f=> !q || f.name.toLowerCase().includes(q));
+  const grid = document.getElementById('driveGrid');
+  const empty = document.getElementById('emptyDrive');
+  if(!items.length){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = items.map(f=>`<div class="gal-card">
+    <a href="https://drive.google.com/file/d/${f.id}/view" target="_blank" rel="noopener">
+      <img loading="lazy" src="https://drive.google.com/thumbnail?id=${f.id}&sz=w500" alt="${escapeHtml(f.name)}">
+    </a>
+    <div class="gal-info"><div class="gal-name">${escapeHtml(f.name)}</div></div>
+  </div>`).join('');
+}
+
+document.getElementById('fDriveCarpeta')?.addEventListener('change', e=> loadDriveFiles(e.target.value));
+document.getElementById('fDriveBuscar')?.addEventListener('input', renderDrive);
 
 let data = { requests: [], productos: {}, usuarios: {} };
 let session = null; // { role, nombre, uid, usuario }
@@ -447,14 +534,15 @@ function startApp(){
 function buildTabs(){
   const tabs = document.getElementById('tabs');
   if(session.role === 'vendedora'){
-    tabs.innerHTML = `<button id="tabNew" class="active">Nueva solicitud</button><button id="tabMine">Mis solicitudes</button><button id="tabGaleria">Galería</button>`;
+    tabs.innerHTML = `<button id="tabNew" class="active">Nueva solicitud</button><button id="tabMine">Mis solicitudes</button><button id="tabGaleria">Galería</button><button id="tabDrive">Fotos Drive</button>`;
     document.getElementById('tabNew').addEventListener('click', ()=>setTab('new'));
     document.getElementById('tabMine').addEventListener('click', ()=>{ setTab('mine'); renderMine(); });
     document.getElementById('tabGaleria').addEventListener('click', ()=>{ setTab('galeria'); renderGaleria(); });
+    document.getElementById('tabDrive').addEventListener('click', ()=>{ setTab('drive'); initDrive(); });
     setTab('new');
     document.getElementById('vendedora').value = session.nombre;
   } else {
-    let html = `<button id="tabBoard" class="active">Tablero <span id="pendCount" class="badge-count" style="display:none">0</span></button><button id="tabGaleria">Galería</button>`;
+    let html = `<button id="tabBoard" class="active">Tablero <span id="pendCount" class="badge-count" style="display:none">0</span></button><button id="tabGaleria">Galería</button><button id="tabDrive">Fotos Drive</button>`;
     if(session.role === 'admin'){
       html += `<button id="tabProd">Productos</button>`;
       html += `<button id="tabUsuarios">Usuarios <span id="pendUsersBadge" class="badge-count" style="display:none">0</span></button>`;
@@ -462,6 +550,7 @@ function buildTabs(){
     tabs.innerHTML = html;
     document.getElementById('tabBoard').addEventListener('click', ()=>{ setTab('board'); renderList(); });
     document.getElementById('tabGaleria').addEventListener('click', ()=>{ setTab('galeria'); renderGaleria(); });
+    document.getElementById('tabDrive').addEventListener('click', ()=>{ setTab('drive'); initDrive(); });
     if(session.role === 'admin'){
       document.getElementById('tabProd').addEventListener('click', ()=>{ setTab('prod'); renderProductos(); });
       document.getElementById('tabUsuarios').addEventListener('click', ()=>{ setTab('usuarios'); renderUsuarios(); });
@@ -477,8 +566,9 @@ function setTab(which){
   document.getElementById('viewProductos').style.display = which==='prod' ? 'block':'none';
   document.getElementById('viewUsuarios').style.display = which==='usuarios' ? 'block':'none';
   document.getElementById('viewGaleria').style.display = which==='galeria' ? 'block':'none';
+  document.getElementById('viewDrive').style.display = which==='drive' ? 'block':'none';
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
-  const map = {new:'tabNew', mine:'tabMine', board:'tabBoard', prod:'tabProd', usuarios:'tabUsuarios', galeria:'tabGaleria'};
+  const map = {new:'tabNew', mine:'tabMine', board:'tabBoard', prod:'tabProd', usuarios:'tabUsuarios', galeria:'tabGaleria', drive:'tabDrive'};
   document.getElementById(map[which])?.classList.add('active');
 }
 
