@@ -10,7 +10,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg: #16262A; --surface: #1E3236; --surface-2: #24393D;
@@ -98,6 +97,14 @@
   .prod-row select{width:auto;padding:6px 8px;font-size:13px;}
   h3.section{font-family:'Archivo Expanded';font-size:14px;color:var(--canvas-dim);margin:22px 0 12px;}
   .gal-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(140px,1fr));gap:12px;}
+  .folder-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(150px,1fr));gap:10px;margin-bottom:18px;}
+  .folder-card{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--canvas-dim);border-radius:var(--radius);padding:12px 12px;color:var(--ink);font-family:'IBM Plex Sans';font-size:13.5px;font-weight:600;text-align:left;cursor:pointer;}
+  .folder-card:hover{background:var(--surface-2);}
+  .folder-card svg{flex:none;width:22px;height:22px;fill:var(--canvas);}
+  .folder-card span{line-height:1.25;word-break:break-word;}
+  .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:14px;font-size:13px;color:var(--ink-dim);}
+  .crumbs button{background:none;border:none;color:var(--canvas);font-family:'IBM Plex Sans';font-size:13px;cursor:pointer;padding:2px 0;text-decoration:underline;}
+  .crumbs .actual{color:var(--ink);font-weight:600;}
   .gal-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
   .gal-card img{width:100%;height:110px;object-fit:cover;display:block;background:var(--surface-2);}
   .gal-card .gal-info{padding:8px 10px;}
@@ -207,12 +214,7 @@
         <div class="checkline"><input type="checkbox" id="prodTieneFoto"><label for="prodTieneFoto">Ya tiene foto</label></div>
         <button class="btn small" id="btnAddProd">Agregar al catálogo</button>
 
-        <h3 class="section">Importar varios productos desde Excel/CSV</h3>
-        <div class="import-box">
-          <p>El archivo debe tener columnas con encabezados: <code>nombre</code> (obligatorio), <code>categoria</code> (opcional), <code>tiene_foto</code> (opcional: si/no).</p>
-          <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
-        </div>
-        <div id="importMsg" class="hint"></div>
+        <div class="hint" style="margin-top:12px;">El catálogo se maneja desde la hoja de Google: lo que agregues aquí se agrega a la hoja, y lo que edites o borres en la hoja se refleja aquí. Para cargar muchos productos de una vez, pégalos directo en la hoja.</div>
 
         <h3 class="section">Catálogo de productos</h3>
         <div id="prodList"></div>
@@ -221,12 +223,13 @@
 
       <section id="viewDrive" style="display:none;">
         <div class="filters">
-          <select id="fDriveCarpeta"><option value="">Cargando carpetas...</option></select>
-          <input type="text" id="fDriveBuscar" placeholder="Buscar por nombre de archivo...">
+          <input type="text" id="fDriveBuscar" placeholder="Buscar carpeta o foto...">
         </div>
+        <div id="driveCrumbs" class="crumbs"></div>
         <div id="driveMsg" class="hint"></div>
+        <div id="driveFolders" class="folder-grid"></div>
         <div id="driveGrid" class="gal-grid"></div>
-        <div id="emptyDrive" class="empty" style="display:none;">No hay fotos en esta carpeta.</div>
+        <div id="emptyDrive" class="empty" style="display:none;">Esta carpeta está vacía.</div>
       </section>
 
       <section id="viewGaleria" style="display:none;">
@@ -271,11 +274,30 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const EMAIL_DOMAIN = '@lonas-app.local';
 
+/* ---------- GOOGLE SHEETS (la hoja es la fuente del catálogo) ---------- */
+// Pega aquí la URL de la aplicación web de Apps Script (termina en /exec)
+const SHEETS_WEBAPP_URL = '';
+
+async function sheetsAccion(payload){
+  if(!SHEETS_WEBAPP_URL) throw new Error('falta configurar SHEETS_WEBAPP_URL');
+  const idToken = await auth.currentUser.getIdToken();
+  const res = await fetch(SHEETS_WEBAPP_URL, {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, idToken })
+  });
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'error desconocido');
+  return json;
+}
+
 /* ---------- GOOGLE DRIVE (solo lectura, carpeta pública) ---------- */
 const DRIVE_API_KEY = 'AIzaSyAlw7VuQR-prD_xmc2-Iwp2svaEXkYRSCs';
-const DRIVE_ROOT_FOLDER_ID = '1wncZGyHVe8Ylkme8ftLGG3zAYyzGbBiN';
-let driveFolders = null;   // [{id,name}] subcarpetas de la carpeta principal
-let driveFiles = [];       // fotos de la carpeta seleccionada
+const DRIVE_ROOT_FOLDER_ID = '1drbu3VWlTKDKqUH8-bKAghXi8RIQgwid';
+let drivePath = [];         // carpetas por las que se ha entrado: [{id,name}]; vacío = carpeta principal
+let driveSubfolders = [];   // subcarpetas de la carpeta actual
+let driveFiles = [];        // fotos de la carpeta actual
+let driveStarted = false;
+const driveCache = {};      // id de carpeta -> {folders, files}
 
 async function driveList(q, fields){
   const url = 'https://www.googleapis.com/drive/v3/files?pageSize=200&orderBy=name'
@@ -290,62 +312,93 @@ async function driveList(q, fields){
   return (await res.json()).files || [];
 }
 
-async function initDrive(){
-  const sel = document.getElementById('fDriveCarpeta');
+function initDrive(){
+  if(driveStarted) return;
+  driveStarted = true;
+  loadDriveFolder(DRIVE_ROOT_FOLDER_ID);
+}
+
+function currentDriveId(){
+  return drivePath.length ? drivePath[drivePath.length-1].id : DRIVE_ROOT_FOLDER_ID;
+}
+
+async function loadDriveFolder(folderId){
   const msg = document.getElementById('driveMsg');
-  if(driveFolders){ return; }
-  msg.textContent = 'Cargando carpetas de Drive...';
+  msg.style.color = '';
   try{
-    driveFolders = await driveList(
-      `'${DRIVE_ROOT_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      'files(id,name)'
-    );
-    let html = '<option value="' + DRIVE_ROOT_FOLDER_ID + '">(Carpeta principal)</option>';
-    html += driveFolders.map(f=>`<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`).join('');
-    sel.innerHTML = html;
+    if(!driveCache[folderId]){
+      msg.textContent = 'Cargando...';
+      const [folders, files] = await Promise.all([
+        driveList(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, 'files(id,name)'),
+        driveList(`'${folderId}' in parents and mimeType contains 'image/' and trashed=false`, 'files(id,name)')
+      ]);
+      driveCache[folderId] = { folders, files };
+    }
     msg.textContent = '';
-    loadDriveFiles(sel.value);
+    driveSubfolders = driveCache[folderId].folders;
+    driveFiles = driveCache[folderId].files;
+    renderDrive();
   }catch(e){
     console.error(e);
+    driveStarted = false;
     msg.style.color = '#E08A8A';
     msg.textContent = 'No se pudo leer Drive. Revisa que la carpeta sea pública y que la clave de API tenga habilitada la API de Drive.';
   }
 }
 
-async function loadDriveFiles(folderId){
-  const msg = document.getElementById('driveMsg');
-  msg.style.color = '';
-  msg.textContent = 'Cargando fotos...';
-  try{
-    driveFiles = await driveList(
-      `'${folderId}' in parents and mimeType contains 'image/' and trashed=false`,
-      'files(id,name)'
-    );
-    msg.textContent = '';
-    renderDrive();
-  }catch(e){
-    console.error(e);
-    msg.style.color = '#E08A8A';
-    msg.textContent = 'No se pudieron cargar las fotos de esta carpeta.';
-  }
-}
-
 function renderDrive(){
   const q = (document.getElementById('fDriveBuscar').value || '').trim().toLowerCase();
+
+  // Ruta (migas de pan)
+  const crumbs = document.getElementById('driveCrumbs');
+  if(drivePath.length){
+    let html = '<button data-i="-1">Inicio</button>';
+    drivePath.forEach((c,i)=>{
+      html += '<span>/</span>';
+      html += (i === drivePath.length-1)
+        ? `<span class="actual">${escapeHtml(c.name)}</span>`
+        : `<button data-i="${i}">${escapeHtml(c.name)}</button>`;
+    });
+    crumbs.innerHTML = html;
+    crumbs.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        drivePath = drivePath.slice(0, parseInt(b.getAttribute('data-i'),10) + 1);
+        document.getElementById('fDriveBuscar').value = '';
+        loadDriveFolder(currentDriveId());
+      });
+    });
+  } else {
+    crumbs.innerHTML = '';
+  }
+
+  // Subcarpetas visibles como tarjetas
+  const folders = driveSubfolders.filter(f=> !q || f.name.toLowerCase().includes(q));
+  const folderEl = document.getElementById('driveFolders');
+  folderEl.innerHTML = folders.map(f=>`<button class="folder-card" data-id="${escapeHtml(f.id)}" data-name="${escapeHtml(f.name)}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
+    <span>${escapeHtml(f.name)}</span>
+  </button>`).join('');
+  folderEl.querySelectorAll('.folder-card').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      drivePath.push({ id: b.getAttribute('data-id'), name: b.getAttribute('data-name') });
+      document.getElementById('fDriveBuscar').value = '';
+      loadDriveFolder(currentDriveId());
+    });
+  });
+
+  // Fotos de la carpeta actual
   const items = driveFiles.filter(f=> !q || f.name.toLowerCase().includes(q));
   const grid = document.getElementById('driveGrid');
-  const empty = document.getElementById('emptyDrive');
-  if(!items.length){ grid.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
   grid.innerHTML = items.map(f=>`<div class="gal-card">
     <a href="https://drive.google.com/file/d/${f.id}/view" target="_blank" rel="noopener">
       <img loading="lazy" src="https://drive.google.com/thumbnail?id=${f.id}&sz=w500" alt="${escapeHtml(f.name)}">
     </a>
     <div class="gal-info"><div class="gal-name">${escapeHtml(f.name)}</div></div>
   </div>`).join('');
+
+  document.getElementById('emptyDrive').style.display = (!folders.length && !items.length) ? 'block' : 'none';
 }
 
-document.getElementById('fDriveCarpeta')?.addEventListener('change', e=> loadDriveFiles(e.target.value));
 document.getElementById('fDriveBuscar')?.addEventListener('input', renderDrive);
 
 let data = { requests: [], productos: {}, usuarios: {} };
@@ -858,7 +911,7 @@ function renderProductos(){
     return `<div class="prod-row">
       <div>
         <div class="pname">${escapeHtml(p.nombreOriginal)} <span class="status ${p.tieneFoto?'done':'nofoto'}" style="margin-left:6px;">${p.tieneFoto?'Con foto':'Sin foto'}</span></div>
-        <div class="porigen">${p.categoria ? escapeHtml(p.categoria) + ' · ' : ''}${p.origen==='manual' ? 'Agregado manualmente' : p.origen==='importado' ? 'Importado desde archivo' : 'Detectado desde una solicitud'} · ${fmtDate(p.fecha)}</div>
+        <div class="porigen">${p.categoria ? escapeHtml(p.categoria) + ' · ' : ''}${p.origen==='manual' ? 'Agregado manualmente' : p.origen==='sheets' ? 'Desde la hoja de Google' : p.origen==='importado' ? 'Importado desde archivo' : 'Detectado desde una solicitud'} · ${fmtDate(p.fecha)}</div>
       </div>
       <div class="pactions">
         <button class="btn secondary small btn-toggle-prod" data-k="${escapeHtml(k)}" data-val="${p.tieneFoto ? 'false' : 'true'}">${p.tieneFoto ? 'Quitar marca' : 'Marcar con foto'}</button>
@@ -869,8 +922,12 @@ function renderProductos(){
   listEl.querySelectorAll('.btn-del-prod').forEach(b=>{
     b.addEventListener('click', async ()=>{
       if(!confirm('¿Quitar este producto del catálogo? Las vendedoras ya no podrán seleccionarlo.')) return;
-      try{ await db.collection('productos').doc(b.getAttribute('data-k')).delete(); }
-      catch(e){ showToast('No se pudo quitar.', true); }
+      const p = data.productos[b.getAttribute('data-k')];
+      b.disabled = true;
+      try{
+        await sheetsAccion({ accion:'remove', nombre: p ? p.nombreOriginal : b.getAttribute('data-k') });
+        showToast('Quitado de la hoja. Se actualiza en unos segundos.');
+      }catch(e){ showToast('No se pudo quitar: ' + e.message, true); b.disabled = false; }
     });
   });
   listEl.querySelectorAll('.btn-toggle-prod').forEach(b=>{
@@ -888,82 +945,20 @@ document.getElementById('btnAddProd')?.addEventListener('click', async ()=>{
   const input = document.getElementById('prodManual');
   const catInput = document.getElementById('prodCategoria');
   const checkbox = document.getElementById('prodTieneFoto');
+  const btn = document.getElementById('btnAddProd');
   const nombre = input.value.trim();
   const categoria = catInput.value.trim();
   if(!nombre) return;
+  if(nombre.indexOf('/') !== -1){ showToast('El nombre no puede contener "/".', true); return; }
   const key = normProd(nombre);
   if(data.productos[key]){ showToast('Ese código ya existe en el catálogo.', true); return; }
+  btn.disabled = true;
   try{
-    await db.collection('productos').doc(key).set({
-      nombreOriginal: nombre, categoria: categoria || null, tieneFoto: checkbox.checked, fecha: new Date().toISOString(), origen: 'manual', fotos: []
-    });
+    await sheetsAccion({ accion:'add', nombre, categoria, tieneFoto: checkbox.checked });
     input.value=''; catInput.value=''; checkbox.checked = false;
-    showToast('Producto agregado al catálogo.');
-  }catch(e){ showToast('No se pudo agregar.', true); }
-});
-
-/* ---------- ADMIN: importación masiva desde Excel/CSV ---------- */
-document.getElementById('importFile')?.addEventListener('change', async (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const msg = document.getElementById('importMsg');
-  msg.textContent = 'Leyendo archivo...';
-  try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-    if(!rows.length){ msg.textContent = 'El archivo no tiene filas de datos.'; return; }
-
-    const norm = (obj)=>{
-      const out = {};
-      Object.keys(obj).forEach(k=> out[k.toString().trim().toLowerCase()] = obj[k]);
-      return out;
-    };
-
-    let agregados = 0, omitidos = 0, sinNombre = 0;
-    let batch = db.batch();
-    let opsEnBatch = 0;
-
-    for(const rawRow of rows){
-      const row = norm(rawRow);
-      const nombre = (row['nombre'] || '').toString().trim();
-      if(!nombre){ sinNombre++; continue; }
-      const key = normProd(nombre);
-      if(data.productos[key]){ omitidos++; continue; }
-      const categoria = (row['categoria'] || '').toString().trim();
-      const tieneFotoRaw = (row['tiene_foto'] || '').toString().trim().toLowerCase();
-      const tieneFoto = ['si','sí','true','1','x'].includes(tieneFotoRaw);
-
-      const ref = db.collection('productos').doc(key);
-      batch.set(ref, {
-        nombreOriginal: nombre,
-        categoria: categoria || null,
-        tieneFoto,
-        fecha: new Date().toISOString(),
-        origen: 'importado',
-        fotos: []
-      });
-      opsEnBatch++;
-      agregados++;
-      data.productos[key] = { nombreOriginal: nombre }; // evita duplicados dentro del mismo archivo
-
-      if(opsEnBatch >= 450){
-        await batch.commit();
-        batch = db.batch();
-        opsEnBatch = 0;
-      }
-    }
-    if(opsEnBatch > 0) await batch.commit();
-
-    msg.textContent = `Listo: ${agregados} agregados, ${omitidos} ya existían (omitidos)${sinNombre ? `, ${sinNombre} filas sin nombre (omitidas)` : ''}.`;
-    showToast(`${agregados} productos importados.`);
-  }catch(err){
-    msg.textContent = 'No se pudo leer o importar el archivo.';
-    console.error(err);
-  }
-  e.target.value = '';
+    showToast('Agregado a la hoja. Aparece en unos segundos.');
+  }catch(e){ showToast('No se pudo agregar: ' + e.message, true); }
+  btn.disabled = false;
 });
 
 /* ---------- ADMIN: usuarios (registro y roles) ---------- */
