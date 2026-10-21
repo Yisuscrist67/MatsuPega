@@ -133,6 +133,13 @@
     <div id="gateLogin" class="authform" style="display:none;">
       <div class="field"><label>Usuario</label><input type="text" id="loginUsuario" autocomplete="username"></div>
       <div class="field"><label>Contraseña</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+      
+      <!-- Checkbox para recordar sesión por 15 días -->
+      <div class="checkline" style="margin-bottom: 12px;">
+        <input type="checkbox" id="rememberMe">
+        <label for="rememberMe" style="margin-bottom:0; font-size:13px; cursor:pointer;">Recordarme por 15 días</label>
+      </div>
+
       <button class="btn block" id="btnLogin">Entrar</button>
       <div id="loginMsg" class="hint" style="color:#E08A8A;"></div>
       <div style="text-align:center;"><button class="back-link" id="backFromLogin">Volver</button></div>
@@ -467,12 +474,22 @@ document.getElementById('btnRegistro').addEventListener('click', async ()=>{
 document.getElementById('btnLogin').addEventListener('click', async ()=>{
   const usuario = document.getElementById('loginUsuario').value.trim();
   const pass = document.getElementById('loginPass').value;
+  const remember = document.getElementById('rememberMe').checked;
   const msg = document.getElementById('loginMsg');
   msg.textContent = '';
   if(!usuario || !pass){ msg.textContent = 'Ingresa usuario y contraseña.'; return; }
   try{
-    // Usar persistencia SESSION: la sesión expira automáticamente al cerrar la pestaña/navegador
-    await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+    if(remember){
+      // Si selecciona recordar por 15 días: persistencia LOCAL y guardamos la fecha límite
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      const expireTime = Date.now() + (15 * 24 * 60 * 60 * 1000); // 15 días en ms
+      localStorage.setItem('session_expiration', expireTime.toString());
+    } else {
+      // Si no lo marca: la sesión se cierra al cerrar la pestaña
+      await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+      localStorage.removeItem('session_expiration');
+    }
+
     const cred = await auth.signInWithEmailAndPassword(usuarioToEmail(usuario), pass);
     document.getElementById('loginUsuario').value='';
     document.getElementById('loginPass').value='';
@@ -493,6 +510,18 @@ auth.onAuthStateChanged((user) => {
     document.getElementById('gate').style.display = 'block';
     switchGate('gateHome');
     return;
+  }
+
+  // Verificar expiración de 15 días
+  const expireTimeStr = localStorage.getItem('session_expiration');
+  if (expireTimeStr) {
+    const expireTime = parseInt(expireTimeStr, 10);
+    if (Date.now() > expireTime) {
+      localStorage.removeItem('session_expiration');
+      auth.signOut();
+      showToast('Tu sesión de 15 días ha expirado. Por favor, vuelve a ingresar.', true);
+      return;
+    }
   }
 
   // Escuchar el perfil del usuario actual en TIEMPO REAL
@@ -539,6 +568,7 @@ function stopAllListeners() {
 
 document.getElementById('btnLogout').addEventListener('click', async ()=>{
   stopAllListeners();
+  localStorage.removeItem('session_expiration');
   await auth.signOut();
   session = null;
   document.getElementById('shell').style.display='none';
