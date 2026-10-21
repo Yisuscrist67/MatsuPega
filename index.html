@@ -471,15 +471,18 @@ document.getElementById('btnLogin').addEventListener('click', async ()=>{
   msg.textContent = '';
   if(!usuario || !pass){ msg.textContent = 'Ingresa usuario y contraseña.'; return; }
   try{
+    // Usar persistencia SESSION: la sesión expira automáticamente al cerrar la pestaña/navegador
+    await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
     const cred = await auth.signInWithEmailAndPassword(usuarioToEmail(usuario), pass);
     document.getElementById('loginUsuario').value='';
     document.getElementById('loginPass').value='';
   }catch(e){
     msg.textContent = 'Usuario o contraseña incorrectos.';
+    console.error(e);
   }
 });
 
-/* ---------- SESIÓN PERSISTENTE Y CONEXIÓN EN TIEMPO REAL ---------- */
+/* ---------- SESIÓN Y CONEXIÓN EN TIEMPO REAL ---------- */
 auth.onAuthStateChanged((user) => {
   // Limpiar escuchadores previos si existen
   stopAllListeners();
@@ -515,7 +518,7 @@ auth.onAuthStateChanged((user) => {
     const prevRole = session ? session.role : null;
     session = { role: u.rol, nombre: u.nombre, uid: user.uid, usuario: u.usuario };
 
-    // Si cambió de rol o es la primera carga tras recargar la página
+    // Si cambió de rol o es la primera carga
     if (!prevRole || prevRole !== u.rol) {
       startApp();
     } else {
