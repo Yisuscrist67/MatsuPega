@@ -275,7 +275,6 @@ const auth = firebase.auth();
 const EMAIL_DOMAIN = '@lonas-app.local';
 
 /* ---------- GOOGLE SHEETS (la hoja es la fuente del catálogo) ---------- */
-// Pega aquí la URL de la aplicación web de Apps Script (termina en /exec)
 const SHEETS_WEBAPP_URL = '';
 
 async function sheetsAccion(payload){
@@ -293,11 +292,11 @@ async function sheetsAccion(payload){
 /* ---------- GOOGLE DRIVE (solo lectura, carpeta pública) ---------- */
 const DRIVE_API_KEY = 'AIzaSyAlw7VuQR-prD_xmc2-Iwp2svaEXkYRSCs';
 const DRIVE_ROOT_FOLDER_ID = '1drbu3VWlTKDKqUH8-bKAghXi8RIQgwid';
-let drivePath = [];         // carpetas por las que se ha entrado: [{id,name}]; vacío = carpeta principal
-let driveSubfolders = [];   // subcarpetas de la carpeta actual
-let driveFiles = [];        // fotos de la carpeta actual
+let drivePath = [];
+let driveSubfolders = [];
+let driveFiles = [];
 let driveStarted = false;
-const driveCache = {};      // id de carpeta -> {folders, files}
+const driveCache = {};
 
 async function driveList(q, fields){
   const url = 'https://www.googleapis.com/drive/v3/files?pageSize=200&orderBy=name'
@@ -349,7 +348,6 @@ async function loadDriveFolder(folderId){
 function renderDrive(){
   const q = (document.getElementById('fDriveBuscar').value || '').trim().toLowerCase();
 
-  // Ruta (migas de pan)
   const crumbs = document.getElementById('driveCrumbs');
   if(drivePath.length){
     let html = '<button data-i="-1">Inicio</button>';
@@ -371,7 +369,6 @@ function renderDrive(){
     crumbs.innerHTML = '';
   }
 
-  // Subcarpetas visibles como tarjetas
   const folders = driveSubfolders.filter(f=> !q || f.name.toLowerCase().includes(q));
   const folderEl = document.getElementById('driveFolders');
   folderEl.innerHTML = folders.map(f=>`<button class="folder-card" data-id="${escapeHtml(f.id)}" data-name="${escapeHtml(f.name)}">
@@ -386,7 +383,6 @@ function renderDrive(){
     });
   });
 
-  // Fotos de la carpeta actual
   const items = driveFiles.filter(f=> !q || f.name.toLowerCase().includes(q));
   const grid = document.getElementById('driveGrid');
   grid.innerHTML = items.map(f=>`<div class="gal-card">
@@ -402,10 +398,14 @@ function renderDrive(){
 document.getElementById('fDriveBuscar')?.addEventListener('input', renderDrive);
 
 let data = { requests: [], productos: {}, usuarios: {} };
-let session = null; // { role, nombre, uid, usuario }
+let session = null;
 let expandedId = null;
-let requestListenerStarted = false;
-let usersListenerStarted = false;
+
+// Desuscripciones de escuchadores Firestore
+let unsubscribeRequests = null;
+let unsubscribeProductos = null;
+let unsubscribeUsuarios = null;
+let unsubscribeUserDoc = null;
 
 function usuarioToEmail(u){ return u.trim().toLowerCase().replace(/\s+/g,'') + EMAIL_DOMAIN; }
 function normProd(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
@@ -472,34 +472,70 @@ document.getElementById('btnLogin').addEventListener('click', async ()=>{
   if(!usuario || !pass){ msg.textContent = 'Ingresa usuario y contraseña.'; return; }
   try{
     const cred = await auth.signInWithEmailAndPassword(usuarioToEmail(usuario), pass);
-    const docSnap = await db.collection('usuarios').doc(cred.user.uid).get();
-    if(!docSnap.exists){ await auth.signOut(); msg.textContent = 'Cuenta no encontrada.'; return; }
-    const u = docSnap.data();
-    if(u.estado === 'pendiente'){ await auth.signOut(); msg.textContent = 'Tu cuenta aún está pendiente de aprobación.'; return; }
-    if(u.estado === 'rechazado'){ await auth.signOut(); msg.textContent = 'Tu solicitud de acceso fue rechazada. Habla con el admin.'; return; }
-    session = { role: u.rol, nombre: u.nombre, uid: cred.user.uid, usuario: u.usuario };
     document.getElementById('loginUsuario').value='';
     document.getElementById('loginPass').value='';
-    startApp();
   }catch(e){
     msg.textContent = 'Usuario o contraseña incorrectos.';
   }
 });
 
-/* ---------- SESIÓN PERSISTENTE ---------- */
-auth.onAuthStateChanged(async (user)=>{
-  if(!user || session) return;
-  try{
-    const docSnap = await db.collection('usuarios').doc(user.uid).get();
-    if(docSnap.exists && docSnap.data().estado === 'aprobado'){
-      const u = docSnap.data();
-      session = { role: u.rol, nombre: u.nombre, uid: user.uid, usuario: u.usuario };
-      startApp();
+/* ---------- SESIÓN PERSISTENTE Y CONEXIÓN EN TIEMPO REAL ---------- */
+auth.onAuthStateChanged((user) => {
+  // Limpiar escuchadores previos si existen
+  stopAllListeners();
+
+  if (!user) {
+    session = null;
+    document.getElementById('shell').style.display = 'none';
+    document.getElementById('gate').style.display = 'block';
+    switchGate('gateHome');
+    return;
+  }
+
+  // Escuchar el perfil del usuario actual en TIEMPO REAL
+  unsubscribeUserDoc = db.collection('usuarios').doc(user.uid).onSnapshot((docSnap) => {
+    if (!docSnap.exists) {
+      auth.signOut();
+      showToast('Usuario no registrado en la base de datos.', true);
+      return;
     }
-  }catch(e){ /* se queda en la pantalla de login */ }
+
+    const u = docSnap.data();
+
+    if (u.estado !== 'aprobado') {
+      auth.signOut();
+      session = null;
+      document.getElementById('shell').style.display = 'none';
+      document.getElementById('gate').style.display = 'block';
+      if (u.estado === 'pendiente') showToast('Tu cuenta aún está pendiente de aprobación.');
+      if (u.estado === 'rechazado') showToast('Tu solicitud de acceso fue rechazada.', true);
+      return;
+    }
+
+    const prevRole = session ? session.role : null;
+    session = { role: u.rol, nombre: u.nombre, uid: user.uid, usuario: u.usuario };
+
+    // Si cambió de rol o es la primera carga tras recargar la página
+    if (!prevRole || prevRole !== u.rol) {
+      startApp();
+    } else {
+      document.getElementById('whoName').textContent = session.nombre + ' · ' + roleLabel(session.role);
+    }
+  }, (err) => {
+    console.error("Error reconectando usuario:", err);
+    setConn(false, err);
+  });
 });
 
+function stopAllListeners() {
+  if (unsubscribeUserDoc) { unsubscribeUserDoc(); unsubscribeUserDoc = null; }
+  if (unsubscribeRequests) { unsubscribeRequests(); unsubscribeRequests = null; }
+  if (unsubscribeProductos) { unsubscribeProductos(); unsubscribeProductos = null; }
+  if (unsubscribeUsuarios) { unsubscribeUsuarios(); unsubscribeUsuarios = null; }
+}
+
 document.getElementById('btnLogout').addEventListener('click', async ()=>{
+  stopAllListeners();
   await auth.signOut();
   session = null;
   document.getElementById('shell').style.display='none';
@@ -509,15 +545,16 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
 
 /* ---------- FIRESTORE LISTENERS (tiempo real) ---------- */
 function startDataListeners(){
-  if(requestListenerStarted) return;
-  requestListenerStarted = true;
-  db.collection('requests').onSnapshot(snap=>{
+  if (unsubscribeRequests) unsubscribeRequests();
+  if (unsubscribeProductos) unsubscribeProductos();
+
+  unsubscribeRequests = db.collection('requests').onSnapshot(snap=>{
     data.requests = snap.docs.map(d=>({ id: d.id, ...d.data() }));
     refreshAll();
     setConn(true);
   }, err=>{ setConn(false, err); });
 
-  db.collection('productos').onSnapshot(snap=>{
+  unsubscribeProductos = db.collection('productos').onSnapshot(snap=>{
     const map = {};
     snap.docs.forEach(d=>{ map[d.id] = d.data(); });
     data.productos = map;
@@ -525,15 +562,16 @@ function startDataListeners(){
     setConn(true);
   }, err=>{ setConn(false, err); });
 }
+
 function startUsersListener(){
-  if(usersListenerStarted) return;
-  usersListenerStarted = true;
-  db.collection('usuarios').onSnapshot(snap=>{
+  if (unsubscribeUsuarios) unsubscribeUsuarios();
+
+  unsubscribeUsuarios = db.collection('usuarios').onSnapshot(snap=>{
     const map = {};
     snap.docs.forEach(d=>{ map[d.id] = d.data(); });
     data.usuarios = map;
     if(session && session.role === 'admin') renderUsuarios();
-  });
+  }, err=>{ console.error(err); });
 }
 
 function setConn(ok, err){
@@ -963,7 +1001,7 @@ document.getElementById('btnAddProd')?.addEventListener('click', async ()=>{
 
 /* ---------- ADMIN: usuarios (registro y roles) ---------- */
 function renderUsuarios(){
-  const entries = Object.entries(data.usuarios); // [uid, {nombre,usuario,estado,rol,fecha}]
+  const entries = Object.entries(data.usuarios);
   const pendientes = entries.filter(([,u])=>u.estado==='pendiente');
   const aprobados = entries.filter(([,u])=>u.estado==='aprobado');
   const rechazados = entries.filter(([,u])=>u.estado==='rechazado');
