@@ -167,10 +167,22 @@ async function handleFileUpload(e){
   if(!files.length) return;
   e.target.disabled = true;
   try{
-    const dataUrls = await Promise.all(files.map(f=>resizeImage(f, 1100)));
     const r = data.requests.find(x=>x.id===id);
     if(!r) return;
-    const fotosFinal = (r.fotos||[]).concat(dataUrls);
+    const dataUrls = await Promise.all(files.map(f=>resizeImage(f, 1100)));
+
+    // Con Drive configurado se suben allá y en Firestore queda solo el enlace
+    let nuevas = dataUrls;
+    if(fotosEnDrive()){
+      const yaTenia = (r.fotos||[]).length;
+      nuevas = [];
+      for(let i = 0; i < dataUrls.length; i++){
+        showToast(`Subiendo foto ${i+1} de ${dataUrls.length} a Drive...`);
+        nuevas.push(await subirFotoDrive(dataUrls[i], r.producto, `${padNum(r.numero)} ${r.producto} (${yaTenia+i+1})`));
+      }
+    }
+
+    const fotosFinal = (r.fotos||[]).concat(nuevas);
     const fechaCompletada = new Date().toISOString();
 
     await db.collection('requests').doc(id).update({
@@ -187,12 +199,12 @@ async function handleFileUpload(e){
       tieneFoto: true,
       fecha: fechaCompletada,
       origen: (data.productos[key] && data.productos[key].origen) || 'auto',
-      fotos: fotosProductoPrevias.concat(dataUrls)
+      fotos: fotosProductoPrevias.concat(nuevas)
     }, { merge: true });
 
     showToast(`Fotos subidas para ${padNum(r.numero)} · enviadas a ${r.vendedora}`);
   }catch(err){
-    showToast('No se pudo subir la foto. Revisa tu conexión.', true);
+    showToast('No se pudo subir la foto: ' + (err.message || 'revisa tu conexión.'), true);
     console.error(err);
   }
   e.target.disabled = false;

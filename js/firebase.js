@@ -16,6 +16,11 @@ const EMAIL_DOMAIN = '@lonas-app.local';
 /* ---------- GOOGLE SHEETS (la hoja es la fuente del catálogo) ---------- */
 const SHEETS_WEBAPP_URL = '';
 
+/* ---------- FOTOS EN DRIVE (Apps Script, ver apps-script/LEEME.md) ---------- */
+// Pega aquí la URL de la aplicación web. Mientras esté vacía, las fotos se siguen
+// guardando como antes (dentro de Firestore) para que la página no deje de funcionar.
+const FOTOS_WEBAPP_URL = '';
+
 async function sheetsAccion(payload){
   if(!SHEETS_WEBAPP_URL) throw new Error('falta configurar SHEETS_WEBAPP_URL');
   const idToken = await auth.currentUser.getIdToken();

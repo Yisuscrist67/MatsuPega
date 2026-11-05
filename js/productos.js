@@ -6,6 +6,7 @@ function renderProductos(){
   document.getElementById('statDone').textContent = data.requests.filter(r=>r.estado==='completada').length;
   const allKeys = Object.keys(data.productos);
   document.getElementById('statProd').textContent = allKeys.filter(k=>data.productos[k].tieneFoto).length;
+  renderMigracion();
 
   const listEl = document.getElementById('prodList');
   const emptyEl = document.getElementById('emptyProd');

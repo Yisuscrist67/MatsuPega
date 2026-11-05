@@ -10,11 +10,13 @@ js/utils.js         → estado compartido y funciones de ayuda
 js/datos.js         → escuchadores de Firestore en tiempo real
 js/auth.js          → login, registro y sesión
 js/drive.js         → pestaña Fotos Drive
+js/fotos.js         → subida de fotos a Drive y migración de las antiguas
 js/galeria.js       → pestaña Galería
 js/solicitudes.js   → nueva solicitud, mis solicitudes y tablero
 js/productos.js     → catálogo de productos (admin)
 js/usuarios.js      → usuarios y roles (admin)
 js/reporte.js       → reporte mensual (admin y encargado)
 js/app.js           → arranque de la app (se carga al final)
+apps-script/        → script de Google para guardar fotos en Drive (ver LEEME.md)
 ```
 Los scripts se cargan en ese orden al final de `index.html`; `app.js` siempre va último.
