@@ -36,6 +36,17 @@ Los scripts se cargan en ese orden al final de `index.html`; `app.js` siempre va
 
 El admin asigna el perfil en la pestaña **Usuarios**.
 
+## Catálogo desde la Google Sheet
+
+La página lee la hoja **Base de datos (mia)** (pestaña `Hoja 1`, columnas `Nombre`, `Categoria`, `tiene_foto`)
+al entrar y cada 5 minutos, y la junta con los productos de Firestore. Así los productos de la hoja aparecen
+al pedir fotos y, si dicen `si`, sale el aviso de que ya tienen foto.
+
+- La hoja debe estar compartida como **Cualquier persona con el enlace → Lector**; si no, la página la ignora
+  y sigue funcionando solo con Firestore.
+- Si un producto está en la hoja y también en Firestore, manda lo de Firestore (fotos subidas, marcas del admin).
+- El id de la hoja y el nombre de la pestaña están arriba de la sección de la hoja en `js/datos.js`.
+
 ## Avisos
 
 - **Horario de bodega:** a partir de las 13:00 (y antes de las 08:00, y todo el fin de semana) a quien

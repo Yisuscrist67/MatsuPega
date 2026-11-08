@@ -19,7 +19,7 @@ function checkProductWarning(){
   if(!key){ box.innerHTML=''; return; }
   const p = data.productos[key];
   if(p && p.tieneFoto){
-    box.innerHTML = `<div class="warning"><b>Este producto ya tiene foto registrada</b> (desde ${fmtDate(p.fecha)}). Mejor escríbele directamente a Yisus en vez de mandar la solicitud — así es más rápido.</div>`;
+    box.innerHTML = `<div class="warning"><b>Este producto ya tiene foto registrada</b>${p.fecha ? ` (desde ${fmtDate(p.fecha)})` : ''}. Mejor escríbele directamente a Yisus en vez de mandar la solicitud — así es más rápido.</div>`;
   } else {
     box.innerHTML = '';
   }

@@ -18,10 +18,86 @@ function startDataListeners(){
   unsubscribeProductos = db.collection('productos').onSnapshot(snap=>{
     const map = {};
     snap.docs.forEach(d=>{ map[d.id] = d.data(); });
-    data.productos = map;
-    refreshAll();
+    productosFirestore = map;
+    mezclarCatalogo();
     setConn(true);
   }, err=>{ setConn(false, err); });
+
+  cargarHojaProductos();
+  if(!timerHoja) timerHoja = setInterval(cargarHojaProductos, HOJA_REFRESCO_MS);
+}
+
+/* ---------- CATÁLOGO DESDE LA GOOGLE SHEET ----------
+   La página lee la hoja "Base de datos (mia)" (columnas: Nombre, Categoria, tiene_foto)
+   y la junta con los productos guardados en Firestore. La hoja tiene que estar
+   compartida como "Cualquier persona con el enlace: Lector". */
+const HOJA_ID = '1jmLgX-vIXlIkA30U45jKKrYNB1lfSIx83yrdx2w50YI';
+const HOJA_PESTANA = 'Hoja 1';
+const HOJA_REFRESCO_MS = 5 * 60 * 1000; // vuelve a leerla cada 5 minutos
+let productosFirestore = {};
+let productosHoja = {};
+let timerHoja = null;
+
+async function cargarHojaProductos(){
+  const url = 'https://docs.google.com/spreadsheets/d/' + HOJA_ID
+    + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(HOJA_PESTANA);
+  try{
+    const res = await fetch(url, { cache: 'no-store' });
+    const texto = res.ok ? await res.text() : '';
+    // Si la hoja no está compartida, Google responde con su página de inicio de sesión
+    if(!res.ok || /^\s*</.test(texto)) throw new Error('la hoja no está compartida con enlace (HTTP ' + res.status + ')');
+    productosHoja = leerFilasHoja(texto);
+    mezclarCatalogo();
+  }catch(e){
+    console.warn('No se pudo leer la Google Sheet:', e);
+  }
+}
+
+// Convierte el CSV de la hoja en { clave: producto }
+function leerFilasHoja(csv){
+  const filas = parsearCsv(csv);
+  const map = {};
+  filas.slice(1).forEach(f=>{
+    const nombre = (f[0] || '').trim();
+    if(!nombre || nombre.indexOf('/') !== -1) return;
+    const marca = (f[2] || '').trim().toLowerCase();
+    map[normProd(nombre)] = {
+      nombreOriginal: nombre,
+      categoria: (f[1] || '').trim(),
+      tieneFoto: ['si', 'sí', 'true', 'x', '1'].includes(marca),
+      origen: 'sheets',
+      fecha: null
+    };
+  });
+  return map;
+}
+
+function parsearCsv(texto){
+  const filas = []; let fila = []; let campo = ''; let comillas = false;
+  for(let i = 0; i < texto.length; i++){
+    const c = texto[i];
+    if(comillas){
+      if(c === '"' && texto[i+1] === '"'){ campo += '"'; i++; }
+      else if(c === '"') comillas = false;
+      else campo += c;
+    } else if(c === '"') comillas = true;
+    else if(c === ','){ fila.push(campo); campo = ''; }
+    else if(c === '\n' || c === '\r'){
+      if(c === '\r' && texto[i+1] === '\n') i++;
+      fila.push(campo); filas.push(fila); fila = []; campo = '';
+    } else campo += c;
+  }
+  if(campo || fila.length){ fila.push(campo); filas.push(fila); }
+  return filas;
+}
+
+// Junta hoja + Firestore. Lo guardado en Firestore (fotos subidas, marcas del admin) manda.
+function mezclarCatalogo(){
+  const map = {};
+  Object.entries(productosHoja).forEach(([k,p])=>{ map[k] = { ...p }; });
+  Object.entries(productosFirestore).forEach(([k,p])=>{ map[k] = { ...(map[k] || {}), ...p }; });
+  data.productos = map;
+  refreshAll();
 }
 
 function startUsersListener(){

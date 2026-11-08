@@ -17,7 +17,7 @@ function renderProductos(){
     return `<div class="prod-row">
       <div>
         <div class="pname">${escapeHtml(p.nombreOriginal)} <span class="status ${p.tieneFoto?'done':'nofoto'}" style="margin-left:6px;">${p.tieneFoto?'Con foto':'Sin foto'}</span></div>
-        <div class="porigen">${p.categoria ? escapeHtml(p.categoria) + ' · ' : ''}${p.origen==='manual' ? 'Agregado manualmente' : p.origen==='sheets' ? 'Desde la hoja de Google' : p.origen==='importado' ? 'Importado desde archivo' : 'Detectado desde una solicitud'} · ${fmtDate(p.fecha)}</div>
+        <div class="porigen">${p.categoria ? escapeHtml(p.categoria) + ' · ' : ''}${p.origen==='manual' ? 'Agregado manualmente' : p.origen==='sheets' ? 'Desde la hoja de Google' : p.origen==='importado' ? 'Importado desde archivo' : 'Detectado desde una solicitud'}${p.fecha ? ' · ' + fmtDate(p.fecha) : ''}</div>
       </div>
       <div class="pactions">
         <button class="btn secondary small btn-toggle-prod" data-k="${escapeHtml(k)}" data-val="${p.tieneFoto ? 'false' : 'true'}">${p.tieneFoto ? 'Quitar marca' : 'Marcar con foto'}</button>

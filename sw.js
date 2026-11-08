@@ -4,7 +4,7 @@
 
    IMPORTANTE: cuando cambies archivos de la página, sube el número de VERSION
    para que los teléfonos descarguen la versión nueva. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'matsupega-shell-' + VERSION;
 
 const SHELL = [
