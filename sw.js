@@ -4,7 +4,7 @@
 
    IMPORTANTE: cuando cambies archivos de la página, sube el número de VERSION
    para que los teléfonos descarguen la versión nueva. */
-const VERSION = 'v1';
+const VERSION = 'v3';
 const CACHE = 'matsupega-shell-' + VERSION;
 
 const SHELL = [
@@ -22,6 +22,7 @@ const SHELL = [
   'js/productos.js',
   'js/usuarios.js',
   'js/reporte.js',
+  'js/avisos.js',
   'js/app.js',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -86,3 +87,15 @@ async function cacheMientrasActualiza(req, event) {
   }
   return (await deRed) || Response.error();
 }
+
+// Al tocar una notificación: abre la app (o la trae al frente si ya está abierta)
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(lista => {
+      const abierta = lista.find(c => c.url.startsWith(self.registration.scope));
+      if (abierta) return abierta.focus();
+      return self.clients.openWindow('./');
+    })
+  );
+});

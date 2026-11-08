@@ -166,6 +166,7 @@ function stopAllListeners() {
   if (unsubscribeRequests) { unsubscribeRequests(); unsubscribeRequests = null; }
   if (unsubscribeProductos) { unsubscribeProductos(); unsubscribeProductos = null; }
   if (unsubscribeUsuarios) { unsubscribeUsuarios(); unsubscribeUsuarios = null; }
+  if (timerHoja) { clearInterval(timerHoja); timerHoja = null; }
 }
 
 document.getElementById('btnLogout').addEventListener('click', async ()=>{

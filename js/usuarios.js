@@ -21,11 +21,7 @@ function renderUsuarios(){
           <div class="porigen">Solicitó acceso el ${fmtDate(u.fecha)}</div>
         </div>
         <div class="pactions">
-          <select data-uid="${uid}" class="sel-rol-nuevo">
-            <option value="vendedora">Vendedora</option>
-            <option value="encargado">Encargado</option>
-            <option value="admin">Admin</option>
-          </select>
+          <select data-uid="${uid}" class="sel-rol-nuevo">${opcionesRol('vendedora')}</select>
           <button class="btn small btn-aprobar" data-uid="${uid}">Aprobar</button>
           <button class="btn secondary small btn-rechazar" data-uid="${uid}">Rechazar</button>
         </div>
@@ -59,11 +55,7 @@ function renderUsuarios(){
           <div class="porigen">@${escapeHtml(u.usuario)}</div>
         </div>
         <div class="pactions">
-          <select data-uid="${uid}" class="sel-rol-cambio">
-            <option value="vendedora" ${u.rol==='vendedora'?'selected':''}>Vendedora</option>
-            <option value="encargado" ${u.rol==='encargado'?'selected':''}>Encargado</option>
-            <option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option>
-          </select>
+          <select data-uid="${uid}" class="sel-rol-cambio">${opcionesRol(u.rol)}</select>
           <button class="btn secondary small btn-revocar" data-uid="${uid}">Revocar acceso</button>
         </div>
       </div>`).join('');
