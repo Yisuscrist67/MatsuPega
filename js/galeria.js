@@ -29,7 +29,7 @@ function renderGaleria(){
   grid.innerHTML = items.map(([,p])=>{
     const foto = p.fotos[0];
     return `<div class="gal-card">
-      <a href="${foto}" target="_blank"><img src="${foto}"></a>
+      <a href="${safeImgUrl(foto)}" target="_blank" rel="noopener"><img src="${safeImgUrl(foto)}" alt="${escapeHtml(p.nombreOriginal || '')}" loading="lazy"></a>
       <div class="gal-info">
         <div class="gal-name">${escapeHtml(p.nombreOriginal)}</div>
         ${p.categoria ? `<div class="gal-cat">${escapeHtml(p.categoria)}</div>` : ''}

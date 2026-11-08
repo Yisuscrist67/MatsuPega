@@ -4,6 +4,18 @@ document.getElementById('goLogin').addEventListener('click', ()=> switchGate('ga
 document.getElementById('goRegistro').addEventListener('click', ()=> switchGate('gateRegistro'));
 document.getElementById('backFromLogin').addEventListener('click', ()=> switchGate('gateHome'));
 document.getElementById('backFromRegistro').addEventListener('click', ()=> switchGate('gateHome'));
+// Apretar Enter en un campo equivale a apretar el botón del formulario
+[['loginUsuario','btnLogin'],['loginPass','btnLogin'],['regNombre','btnRegistro'],['regUsuario','btnRegistro'],['regPass','btnRegistro']]
+  .forEach(([inputId, btnId])=>{
+    document.getElementById(inputId).addEventListener('keydown', e=>{
+      if(e.key === 'Enter'){ e.preventDefault(); document.getElementById(btnId).click(); }
+    });
+  });
+
+// true mientras se crea una cuenta nueva: Firebase deja la sesión abierta un momento
+// y no queremos que el escuchador de sesión la cierre antes de guardar el perfil
+let registrando = false;
+
 function switchGate(which){
   ['gateHome','gateLogin','gateRegistro'].forEach(id=>{
     document.getElementById(id).style.display = id===which ? (id==='gateHome' ? 'flex':'block') : 'none';
@@ -19,6 +31,9 @@ document.getElementById('btnRegistro').addEventListener('click', async ()=>{
   msg.style.color = 'var(--canvas-dim)';
   if(!nombre || !usuario || !pass){ msg.textContent = 'Completa todos los campos.'; return; }
   if(pass.length < 6){ msg.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  const btn = document.getElementById('btnRegistro');
+  btn.disabled = true;
+  registrando = true;
   try{
     const cred = await auth.createUserWithEmailAndPassword(usuarioToEmail(usuario), pass);
     await db.collection('usuarios').doc(cred.user.uid).set({
@@ -35,6 +50,11 @@ document.getElementById('btnRegistro').addEventListener('click', async ()=>{
     else if(e.code === 'auth/weak-password') msg.textContent = 'La contraseña es muy débil (mínimo 6 caracteres).';
     else msg.textContent = 'No se pudo enviar la solicitud. Intenta de nuevo.';
     console.error(e);
+    // Si la cuenta se creó pero falló guardar el perfil, no dejar la sesión abierta
+    if(auth.currentUser) await auth.signOut().catch(()=>{});
+  }finally{
+    registrando = false;
+    btn.disabled = false;
   }
 });
 
@@ -75,12 +95,19 @@ function iniciarAuth(){
     stopAllListeners();
 
     if (!user) {
+      const estabaDentro = !!session;
       session = null;
+      hideConn();
       document.getElementById('shell').style.display = 'none';
       document.getElementById('gate').style.display = 'block';
-      switchGate('gateHome');
+      // Solo volver al inicio si venía de la app; así no se borra el mensaje
+      // de "solicitud enviada" ni el formulario de login con su aviso
+      if (estabaDentro) switchGate('gateHome');
       return;
     }
+
+    // Recién creada desde "Solicitar acceso": el formulario de registro se encarga
+    if (registrando) return;
 
     // Verificar expiración de 15 días
     const expireTimeStr = localStorage.getItem('session_expiration');

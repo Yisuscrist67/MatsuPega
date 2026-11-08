@@ -38,7 +38,7 @@ async function crearSolicitud(){
   try{
     const numero = await siguienteNumero();
     const nueva = {
-      numero, vendedora, producto, detalle,
+      numero, vendedora, vendedoraUid: session.uid, producto, detalle,
       fecha: new Date().toISOString(),
       estado: 'pendiente',
       fotos: [],
@@ -59,7 +59,11 @@ document.getElementById('btnCrear').addEventListener('click', crearSolicitud);
 
 /* ---------- VENDEDORA: mis solicitudes ---------- */
 function renderMine(){
-  const mine = data.requests.filter(r=>(r.vendedora||'').trim().toLowerCase() === session.nombre.trim().toLowerCase())
+  // Las solicitudes nuevas guardan el id de la vendedora; las antiguas solo tienen el nombre
+  const miNombre = session.nombre.trim().toLowerCase();
+  const mine = data.requests.filter(r=> r.vendedoraUid
+      ? r.vendedoraUid === session.uid
+      : (r.vendedora||'').trim().toLowerCase() === miNombre)
     .sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
   const el = document.getElementById('listMine');
   const empty = document.getElementById('emptyMine');
@@ -76,7 +80,7 @@ function renderMine(){
         </div>
         <span class="status ${done?'done':''}">${done?'Completada':'Pendiente'}</span>
       </div>
-      ${done && (r.fotos||[]).length ? `<div class="thumbs">${r.fotos.map(f=>`<a href="${f}" target="_blank"><img src="${f}"></a>`).join('')}</div>` : ''}
+      ${done && (r.fotos||[]).length ? `<div class="thumbs">${r.fotos.map(f=>`<a href="${safeImgUrl(f)}" target="_blank" rel="noopener"><img src="${safeImgUrl(f)}" alt="Foto" loading="lazy"></a>`).join('')}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -123,8 +127,8 @@ function renderList(){
   listEl.innerHTML = items.map(r=>{
     const isOpen = expandedId === r.id;
     const done = r.estado==='completada';
-    return `<div class="card ${done?'done':''}" data-id="${r.id}">
-      <div class="row1" data-toggle="${r.id}">
+    return `<div class="card ${done?'done':''}" data-id="${escapeHtml(r.id)}">
+      <div class="row1" data-toggle="${escapeHtml(r.id)}">
         <div>
           <div class="numero">${padNum(r.numero)}</div>
           <div class="producto">${escapeHtml(r.producto)}</div>
@@ -152,11 +156,11 @@ function renderDetail(r){
   const fotos = r.fotos || [];
   return `<div class="detail" onclick="event.stopPropagation()">
       ${r.detalle ? `<p>${escapeHtml(r.detalle)}</p>` : ''}
-      ${fotos.length ? `<div class="thumbs">${fotos.map(f=>`<a href="${f}" target="_blank"><img src="${f}"></a>`).join('')}</div>` : ''}
-      <div class="upload-row"><input type="file" class="file-input" data-id="${r.id}" accept="image/*" multiple></div>
+      ${fotos.length ? `<div class="thumbs">${fotos.map(f=>`<a href="${safeImgUrl(f)}" target="_blank" rel="noopener"><img src="${safeImgUrl(f)}" alt="Foto" loading="lazy"></a>`).join('')}</div>` : ''}
+      <div class="upload-row"><input type="file" class="file-input" data-id="${escapeHtml(r.id)}" accept="image/*" multiple></div>
       <div class="actions-row">
-        ${r.estado==='completada' ? `<button class="btn secondary small btn-reabrir" data-id="${r.id}">Reabrir</button>` : ''}
-        <button class="btn secondary small btn-eliminar" data-id="${r.id}">Eliminar</button>
+        ${r.estado==='completada' ? `<button class="btn secondary small btn-reabrir" data-id="${escapeHtml(r.id)}">Reabrir</button>` : ''}
+        <button class="btn secondary small btn-eliminar" data-id="${escapeHtml(r.id)}">Eliminar</button>
       </div>
     </div>`;
 }

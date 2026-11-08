@@ -13,6 +13,11 @@ function usuarioToEmail(u){ return u.trim().toLowerCase().replace(/\s+/g,'') + E
 function normProd(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
 function padNum(n){ return '#' + String(n||0).padStart(4,'0'); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Solo deja pasar fotos (data:image/...) o links https, ya escapados para ir dentro de href/src
+function safeImgUrl(u){
+  const s = String(u || '');
+  return /^(data:image\/|https:\/\/)/i.test(s) ? escapeHtml(s) : '';
+}
 function fmtDate(iso){
   if(!iso) return '';
   const d = new Date(iso);
