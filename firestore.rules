@@ -15,7 +15,17 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['nombre', 'usuario', 'estado', 'rol', 'fecha'])
         && request.resource.data.estado == 'pendiente'
-        && request.resource.data.rol == null;
+        && request.resource.data.rol == null
+        // Mismas condiciones que validarRegistro() en js/utils.js
+        && request.resource.data.usuario is string
+        && request.resource.data.usuario.size() >= 3
+        && request.resource.data.usuario.size() <= 20
+        && request.resource.data.usuario.matches('^[a-z]+([._][a-z]+)*$')
+        // El usuario guardado tiene que ser el mismo con el que se creó la cuenta
+        && request.auth.token.email == request.resource.data.usuario + '@lonas-app.local'
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() <= 60
+        && request.resource.data.nombre.matches('^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+( [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)+$');
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow update, delete: if isAdmin();
     }
