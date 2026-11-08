@@ -1,0 +1,16 @@
+{
+  "name": "Solicitudes de Fotos",
+  "short_name": "Fotos",
+  "description": "Tablero para pedir fotos de productos a bodega.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0F1C1F",
+  "theme_color": "#C1541C",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

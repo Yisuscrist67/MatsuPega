@@ -69,3 +69,48 @@ function refreshAll(){
 
 // Todo cargó: recién ahora escuchamos la sesión de Firebase
 iniciarAuth();
+
+/* ---------- PWA: instalar como app + service worker ---------- */
+// Registra el service worker (permite instalar la página y abrirla más rápido)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(err=>console.warn('No se pudo registrar el service worker:', err));
+  });
+}
+
+(function instalarApp(){
+  const yaInstalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if(yaInstalada) return;
+
+  // Android y PC (Chrome/Edge): el navegador avisa cuando se puede instalar
+  const btn = document.getElementById('btnInstalar');
+  let aviso = null;
+  window.addEventListener('beforeinstallprompt', e=>{
+    e.preventDefault();
+    aviso = e;
+    btn.hidden = false;
+  });
+  btn.addEventListener('click', async ()=>{
+    if(!aviso) return;
+    btn.hidden = true;
+    aviso.prompt();
+    try { await aviso.userChoice; } catch(_){}
+    aviso = null;
+  });
+  window.addEventListener('appinstalled', ()=>{ btn.hidden = true; aviso = null; });
+
+  // iPhone/iPad (Safari): no hay botón automático, mostramos cómo hacerlo
+  const ua = navigator.userAgent;
+  const esIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const esSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  let cerrado = false;
+  try { cerrado = localStorage.getItem('iosInstallCerrado') === '1'; } catch(_){}
+  if(esIOS && esSafari && !cerrado){
+    const tip = document.getElementById('iosInstall');
+    tip.hidden = false;
+    document.getElementById('iosInstallCerrar').addEventListener('click', ()=>{
+      tip.hidden = true;
+      try { localStorage.setItem('iosInstallCerrado', '1'); } catch(_){}
+    });
+  }
+})();

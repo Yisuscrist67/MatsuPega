@@ -11,6 +11,15 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <link rel="stylesheet" href="css/styles.css">
+<!-- PWA: permite instalar la página como app -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C1541C">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fotos">
 </head>
 <body>
 <div id="connstate" class="connstate" style="display:none;">Conectando...</div>
@@ -159,6 +168,13 @@
   </div>
 </div>
 <div id="toast" class="toast"></div>
+
+<!-- Instalar como app (se muestra solo cuando el navegador lo permite) -->
+<button id="btnInstalar" class="install-btn" hidden>Instalar app</button>
+<div id="iosInstall" class="install-tip" hidden>
+  <span>Para instalar en iPhone: toca <b>Compartir</b> y luego <b>Agregar a inicio</b>.</span>
+  <button id="iosInstallCerrar" class="install-tip-close" aria-label="Cerrar">&times;</button>
+</div>
 
 <!-- Ventana emergente del reporte mensual (solo admin y encargado) -->
 <div id="reporteModal" class="modal-bg" style="display:none;">
