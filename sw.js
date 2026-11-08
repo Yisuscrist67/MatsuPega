@@ -4,7 +4,7 @@
 
    IMPORTANTE: cuando cambies archivos de la página, sube el número de VERSION
    para que los teléfonos descarguen la versión nueva. */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'matsupega-shell-' + VERSION;
 
 const SHELL = [
@@ -54,38 +54,27 @@ self.addEventListener('fetch', event => {
   // drive.google.com, fuentes, etc. pasan sin intervención.
   if (url.origin !== self.location.origin) return;
 
-  const esPagina = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
-  if (esPagina) {
-    event.respondWith(redPrimero(req));
-  } else {
-    event.respondWith(cacheMientrasActualiza(req, event));
-  }
+  // Siempre intenta bajar lo último de internet; la copia guardada es solo
+  // para cuando no hay conexión. Así nadie se queda con una versión vieja.
+  event.respondWith(redPrimero(req));
 });
 
-// HTML: intenta internet primero; si no hay conexión, usa la copia guardada.
 async function redPrimero(req) {
   const cache = await caches.open(CACHE);
   try {
-    const resp = await fetch(req);
+    // no-cache: pregunta al servidor si hay versión nueva (si no la hay, responde rápido)
+    const pedido = req.mode === 'navigate'
+      ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+      : new Request(req, { cache: 'no-cache' });
+    const resp = await fetch(pedido);
     if (resp.ok) cache.put(req, resp.clone());
     return resp;
   } catch (err) {
-    return (await cache.match(req)) || (await cache.match('index.html')) || Response.error();
+    const guardada = await cache.match(req, { ignoreSearch: true });
+    if (guardada) return guardada;
+    if (req.mode === 'navigate') return (await cache.match('index.html')) || Response.error();
+    return Response.error();
   }
-}
-
-// CSS/JS/íconos: responde rápido con la copia guardada y la renueva en segundo plano.
-async function cacheMientrasActualiza(req, event) {
-  const cache = await caches.open(CACHE);
-  const guardada = await cache.match(req);
-  const deRed = fetch(req)
-    .then(resp => { if (resp.ok) cache.put(req, resp.clone()); return resp; })
-    .catch(() => null);
-  if (guardada) {
-    event.waitUntil(deRed);
-    return guardada;
-  }
-  return (await deRed) || Response.error();
 }
 
 // Al tocar una notificación: abre la app (o la trae al frente si ya está abierta)

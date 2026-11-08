@@ -77,6 +77,16 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').catch(err=>console.warn('No se pudo registrar el service worker:', err));
   });
+  // Cuando se publica una versión nueva, recarga una vez para usarla de inmediato
+  // (solo si ya había una versión anterior funcionando, para no recargar la primera vez)
+  if(navigator.serviceWorker.controller){
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(recargando) return;
+      recargando = true;
+      location.reload();
+    });
+  }
 }
 
 (function instalarApp(){

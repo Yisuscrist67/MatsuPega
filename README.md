@@ -69,8 +69,9 @@ La app sigue necesitando internet: Firebase y Drive funcionan igual que en la p�
 El service worker solo guarda `index.html`, `css/`, `js/` e `icons/`; nunca guarda datos de Firebase ni de Drive.
 
 ### Al publicar cambios
-Cada vez que cambies archivos de la página, sube el número en `sw.js`
-(`const VERSION = 'v1';` → `'v2'`, etc.). Así los teléfonos con la app instalada reciben la versión nueva.
+La app siempre pide primero la versión de internet, así que los cambios llegan solos al abrirla
+(la copia guardada solo se usa sin conexión). Igual conviene subir el número en `sw.js`
+(`const VERSION = 'v4';` → `'v5'`, etc.): así la app se recarga sola una vez y renueva su copia sin conexión.
 Si agregas un archivo nuevo en `js/`, agrégalo también a la lista `SHELL` de `sw.js`.
 
 ### Probar en el PC
