@@ -3,6 +3,7 @@
 function startDataListeners(){
   if (unsubscribeRequests) unsubscribeRequests();
   if (unsubscribeProductos) unsubscribeProductos();
+  showConnecting();
 
   unsubscribeRequests = db.collection('requests').onSnapshot(snap=>{
     data.requests = snap.docs.map(d=>({ id: d.id, ...d.data() }));
@@ -29,6 +30,12 @@ function startUsersListener(){
     if(session && session.role === 'admin') renderUsuarios();
   }, err=>{ console.error(err); });
 }
+
+function showConnecting(){
+  const el = document.getElementById('connstate');
+  el.textContent = 'Conectando...'; el.className = 'connstate'; el.style.display = 'block';
+}
+function hideConn(){ document.getElementById('connstate').style.display = 'none'; }
 
 function setConn(ok, err){
   const el = document.getElementById('connstate');
