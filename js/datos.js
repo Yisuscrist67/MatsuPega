@@ -40,7 +40,7 @@ let timerHoja = null;
 
 async function cargarHojaProductos(){
   const url = 'https://docs.google.com/spreadsheets/d/' + HOJA_ID
-    + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(HOJA_PESTANA);
+    + '/gviz/tq?tqx=out:csv&headers=1&sheet=' + encodeURIComponent(HOJA_PESTANA); // headers=1: solo la fila 1 es encabezado
   try{
     const res = await fetch(url, { cache: 'no-store' });
     const texto = res.ok ? await res.text() : '';
