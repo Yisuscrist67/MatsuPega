@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function me() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function isApproved() { return isSignedIn() && me().estado == 'aprobado'; }
+    function isAdmin() { return isApproved() && me().rol == 'admin'; }
+    // Encargado y admin: los que atienden solicitudes y suben fotos
+    function isStaff() { return isApproved() && me().rol in ['admin', 'encargado']; }
+
+    match /usuarios/{uid} {
+      // Al registrarse solo se puede crear el propio perfil, pendiente y sin rol
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['nombre', 'usuario', 'estado', 'rol', 'fecha'])
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.rol == null;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /requests/{id} {
+      allow read: if isApproved();
+      // Cualquier usuario aprobado crea solicitudes, pero solo a su nombre y pendientes
+      allow create: if isApproved()
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.vendedoraUid == request.auth.uid;
+      // Completar, reabrir y eliminar: solo encargado y admin
+      allow update, delete: if isStaff();
+    }
+
+    match /productos/{id} {
+      allow read: if isApproved();
+      allow write: if isStaff();
+    }
+
+    match /meta/{id} {
+      // El contador de números de solicitud lo usa cualquiera que crea una
+      allow read, write: if isApproved();
+    }
+  }
+}
