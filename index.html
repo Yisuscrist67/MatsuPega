@@ -39,8 +39,9 @@
     </div>
 
     <div id="gateRegistro" class="authform" style="display:none;">
-      <div class="field"><label>Nombre completo</label><input type="text" id="regNombre"></div>
-      <div class="field"><label>Nombre de usuario</label><input type="text" id="regUsuario" autocomplete="username"></div>
+      <div class="field"><label>Nombre completo</label><input type="text" id="regNombre" maxlength="60" placeholder="Nombre y apellido"></div>
+      <div class="field"><label>Nombre de usuario</label><input type="text" id="regUsuario" autocomplete="username" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="ej: maria.perez"></div>
+      <div class="hint">Usuario: solo letras, sin números, espacios ni tildes (puedes usar . o _). Entre 3 y 20 caracteres.</div>
       <div class="field"><label>Contraseña (mínimo 6 caracteres)</label><input type="password" id="regPass" autocomplete="new-password"></div>
       <button class="btn block" id="btnRegistro">Enviar solicitud de acceso</button>
       <div id="regMsg" class="hint"></div>

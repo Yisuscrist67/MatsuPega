@@ -10,6 +10,27 @@ let unsubscribeUsuarios = null;
 let unsubscribeUserDoc = null;
 
 function usuarioToEmail(u){ return u.trim().toLowerCase().replace(/\s+/g,'') + EMAIL_DOMAIN; }
+/* ---------- Reglas de registro (las mismas están en firestore.rules) ---------- */
+// Usuario: solo letras a-z, sin números, espacios ni tildes; puede llevar . o _ entre letras
+const USUARIO_REGEX = /^[a-z]+([._][a-z]+)*$/;
+// Nombre: al menos nombre y apellido, solo letras (con tildes y ñ) separadas por un espacio
+const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+( [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)+$/;
+
+function limpiarNombre(s){ return s.trim().replace(/\s+/g, ' '); }
+function limpiarUsuario(s){ return s.trim().toLowerCase(); }
+
+// Devuelve el mensaje de error, o '' si está bien
+function validarRegistro(nombre, usuario, pass){
+  if(!nombre || !usuario || !pass) return 'Completa todos los campos.';
+  if(nombre.length > 60) return 'El nombre es muy largo (máximo 60 caracteres).';
+  if(!NOMBRE_REGEX.test(nombre)) return 'Escribe tu nombre y apellido, solo con letras.';
+  if(usuario.length < 3 || usuario.length > 20) return 'El usuario debe tener entre 3 y 20 caracteres.';
+  if(/\d/.test(usuario)) return 'El usuario no puede tener números.';
+  if(!USUARIO_REGEX.test(usuario)) return 'El usuario solo puede tener letras sin tildes (puedes usar . o _ entre medio).';
+  if(pass.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+  return '';
+}
+
 function normProd(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
 function padNum(n){ return '#' + String(n||0).padStart(4,'0'); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

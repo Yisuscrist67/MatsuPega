@@ -24,20 +24,22 @@ function switchGate(which){
 
 /* ---------- REGISTRO ---------- */
 document.getElementById('btnRegistro').addEventListener('click', async ()=>{
-  const nombre = document.getElementById('regNombre').value.trim();
-  const usuario = document.getElementById('regUsuario').value.trim();
+  const nombre = limpiarNombre(document.getElementById('regNombre').value);
+  const usuario = limpiarUsuario(document.getElementById('regUsuario').value);
   const pass = document.getElementById('regPass').value;
   const msg = document.getElementById('regMsg');
+  const error = validarRegistro(nombre, usuario, pass);
+  if(error){ msg.style.color = '#E08A8A'; msg.textContent = error; return; }
   msg.style.color = 'var(--canvas-dim)';
-  if(!nombre || !usuario || !pass){ msg.textContent = 'Completa todos los campos.'; return; }
-  if(pass.length < 6){ msg.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  msg.textContent = '';
   const btn = document.getElementById('btnRegistro');
   btn.disabled = true;
   registrando = true;
+  let cred = null;
   try{
-    const cred = await auth.createUserWithEmailAndPassword(usuarioToEmail(usuario), pass);
+    cred = await auth.createUserWithEmailAndPassword(usuarioToEmail(usuario), pass);
     await db.collection('usuarios').doc(cred.user.uid).set({
-      nombre, usuario: usuario.toLowerCase(), estado: 'pendiente', rol: null, fecha: new Date().toISOString()
+      nombre, usuario, estado: 'pendiente', rol: null, fecha: new Date().toISOString()
     });
     await auth.signOut();
     msg.textContent = 'Tu solicitud fue enviada. Espera a que el admin apruebe tu acceso y te asigne un rol.';
@@ -50,7 +52,9 @@ document.getElementById('btnRegistro').addEventListener('click', async ()=>{
     else if(e.code === 'auth/weak-password') msg.textContent = 'La contraseña es muy débil (mínimo 6 caracteres).';
     else msg.textContent = 'No se pudo enviar la solicitud. Intenta de nuevo.';
     console.error(e);
-    // Si la cuenta se creó pero falló guardar el perfil, no dejar la sesión abierta
+    // Si la cuenta se creó pero falló guardar el perfil, borrarla para que el
+    // nombre de usuario no quede tomado por una cuenta sin perfil
+    if(cred && cred.user) await cred.user.delete().catch(()=>{});
     if(auth.currentUser) await auth.signOut().catch(()=>{});
   }finally{
     registrando = false;
