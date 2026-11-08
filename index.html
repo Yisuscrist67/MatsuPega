@@ -66,6 +66,7 @@
       </div>
       <div class="whoami">
         <div><b id="whoName"></b></div>
+        <button class="btn-logout" id="btnAvisos" hidden>Activar avisos</button>
         <button class="btn-logout" id="btnReporte" style="display:none;">Reporte mensual</button>
         <button class="btn-logout" id="btnLogout">Cerrar sesión</button>
       </div>
@@ -76,7 +77,7 @@
     <main>
       <section id="viewNew">
         <div class="field">
-          <label for="vendedora">Nombre de la vendedora</label>
+          <label for="vendedora">Quién pide</label>
           <input type="text" id="vendedora" readonly>
         </div>
         <div class="field">
@@ -177,6 +178,20 @@
   <button id="iosInstallCerrar" class="install-tip-close" aria-label="Cerrar">&times;</button>
 </div>
 
+<!-- Aviso al pedir una foto fuera del horario de bodega -->
+<div id="horarioModal" class="modal-bg" style="display:none;">
+  <div class="modal modal-chico" role="alertdialog" aria-modal="true" aria-labelledby="horarioTitulo" aria-describedby="horarioTexto">
+    <div class="modal-head">
+      <h2 id="horarioTitulo">Fuera del horario de bodega</h2>
+    </div>
+    <p id="horarioTexto" class="modal-texto">A esta hora es posible que el encargado no se encuentre en bodega. Tu solicitud se enviará igual, pero ten en cuenta que puede tardar más en resolverse.</p>
+    <div class="actions-row">
+      <button class="btn small" id="horarioEnviar">Enviar igual</button>
+      <button class="btn secondary small" id="horarioCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Ventana emergente del reporte mensual (solo admin y encargado) -->
 <div id="reporteModal" class="modal-bg" style="display:none;">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reporteTitulo">
@@ -206,6 +221,7 @@
 <script src="js/productos.js"></script>
 <script src="js/usuarios.js"></script>
 <script src="js/reporte.js"></script>
+<script src="js/avisos.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

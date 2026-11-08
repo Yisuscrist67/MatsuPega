@@ -50,7 +50,29 @@ function showToast(msg, isError){
   t.className = 'toast show' + (isError ? ' error' : '');
   setTimeout(()=>{ t.classList.remove('show'); }, 2500);
 }
-function roleLabel(r){ return {vendedora:'Vendedora', encargado:'Encargado', admin:'Admin'}[r] || '(sin rol)'; }
+/* ---------- PERFILES ---------- */
+// Orden en que aparecen en las listas del admin
+const ROLES = [
+  { id:'vendedora',      nombre:'Vendedora' },
+  { id:'encargado_area', nombre:'Encargado de área' },
+  { id:'dueno',          nombre:'Dueño' },
+  { id:'encargado',      nombre:'Encargado de bodega' },
+  { id:'admin',          nombre:'Admin' }
+];
+function roleLabel(r){ const x = ROLES.find(o=>o.id===r); return x ? x.nombre : '(sin rol)'; }
+function opcionesRol(actual){
+  return ROLES.map(o=>`<option value="${o.id}" ${o.id===actual?'selected':''}>${o.nombre}</option>`).join('');
+}
+
+// Perfiles que piden fotos (ven "Nueva solicitud" y "Mis solicitudes")
+const ROLES_SOLICITANTES = ['vendedora', 'encargado_area', 'dueno'];
+function esSolicitante(rol){ return ROLES_SOLICITANTES.includes(rol); }
+
+/* ---------- PRIORIDAD (según quién pide) ---------- */
+const PRIORIDAD_POR_ROL = { dueno:'alta', encargado_area:'media', vendedora:'normal' };
+const PRIORIDAD_NIVEL = { alta:2, media:1, normal:0 };
+function prioridadDe(r){ return r.prioridad || 'normal'; } // las solicitudes antiguas no la tienen
+function etiquetaPrioridad(p){ return { alta:'Prioridad alta', media:'Prioridad media', normal:'' }[p] || ''; }
 
 function resizeImage(file, maxW){
   return new Promise((resolve, reject)=>{

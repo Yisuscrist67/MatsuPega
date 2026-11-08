@@ -9,12 +9,13 @@ function startApp(){
   buildTabs();
   startDataListeners();
   if(session.role === 'admin') startUsersListener();
+  prepararAvisos();
   refreshAll();
 }
 
 function buildTabs(){
   const tabs = document.getElementById('tabs');
-  if(session.role === 'vendedora'){
+  if(esSolicitante(session.role)){
     tabs.innerHTML = `<button id="tabNew" class="active">Nueva solicitud</button><button id="tabMine">Mis solicitudes</button><button id="tabGaleria">Galería</button><button id="tabDrive">Fotos Drive</button>`;
     document.getElementById('tabNew').addEventListener('click', ()=>setTab('new'));
     document.getElementById('tabMine').addEventListener('click', ()=>{ setTab('mine'); renderMine(); });
@@ -58,7 +59,7 @@ function refreshAll(){
   refreshVendedoraOptions();
   refreshProductoOptions();
   if(document.getElementById('viewGaleria').style.display !== 'none') renderGaleria();
-  if(session.role === 'vendedora'){
+  if(esSolicitante(session.role)){
     if(document.getElementById('viewMine').style.display !== 'none') renderMine();
   } else {
     if(document.getElementById('viewBoard').style.display !== 'none') renderList();

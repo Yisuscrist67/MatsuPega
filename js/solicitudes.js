@@ -34,11 +34,16 @@ async function crearSolicitud(){
   if(!key || !data.productos[key]){ msg.textContent = 'Escribe y elige un producto que exista en el catálogo (empieza a escribir para ver las opciones).'; return; }
   const producto = data.productos[key].nombreOriginal;
 
+  // Fuera del horario de bodega: avisar que puede tardar y dejar que decida
+  if(fueraDeHorario() && !(await confirmarFueraDeHorario())) return;
+
   btn.disabled = true;
   try{
     const numero = await siguienteNumero();
     const nueva = {
       numero, vendedora, vendedoraUid: session.uid, producto, detalle,
+      rolSolicitante: session.role,
+      prioridad: PRIORIDAD_POR_ROL[session.role] || 'normal',
       fecha: new Date().toISOString(),
       estado: 'pendiente',
       fotos: [],
@@ -116,7 +121,9 @@ function renderList(){
     if(fBuscar && !(r.producto||'').toLowerCase().includes(fBuscar)) return false;
     return true;
   });
-  items.sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  // Las pendientes de prioridad alta/media van arriba; el resto, de la más nueva a la más antigua
+  const nivel = r => r.estado==='pendiente' ? PRIORIDAD_NIVEL[prioridadDe(r)] || 0 : 0;
+  items.sort((a,b)=> (nivel(b) - nivel(a)) || (new Date(b.fecha) - new Date(a.fecha)));
   updatePendBadge();
 
   const listEl = document.getElementById('list');
@@ -127,12 +134,13 @@ function renderList(){
   listEl.innerHTML = items.map(r=>{
     const isOpen = expandedId === r.id;
     const done = r.estado==='completada';
-    return `<div class="card ${done?'done':''}" data-id="${escapeHtml(r.id)}">
+    const prio = prioridadDe(r);
+    return `<div class="card ${done?'done':''} prio-${prio}" data-id="${escapeHtml(r.id)}">
       <div class="row1" data-toggle="${escapeHtml(r.id)}">
         <div>
-          <div class="numero">${padNum(r.numero)}</div>
+          <div class="numero">${padNum(r.numero)}${!done && etiquetaPrioridad(prio) ? ` <span class="prio prio-${prio}">${etiquetaPrioridad(prio)}</span>` : ''}</div>
           <div class="producto">${escapeHtml(r.producto)}</div>
-          <div class="meta">${escapeHtml(r.vendedora)} · ${fmtDate(r.fecha)}${r.atendidoPor ? ' · atendida por '+escapeHtml(r.atendidoPor) : ''}</div>
+          <div class="meta">${escapeHtml(r.vendedora)}${r.rolSolicitante && r.rolSolicitante!=='vendedora' ? ' ('+escapeHtml(roleLabel(r.rolSolicitante))+')' : ''} · ${fmtDate(r.fecha)}${r.atendidoPor ? ' · atendida por '+escapeHtml(r.atendidoPor) : ''}</div>
         </div>
         <span class="status ${done?'done':''}">${done?'Completada':'Pendiente'}</span>
       </div>

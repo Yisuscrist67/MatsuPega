@@ -5,7 +5,11 @@ function startDataListeners(){
   if (unsubscribeProductos) unsubscribeProductos();
   showConnecting();
 
+  let primeraCarga = true;
   unsubscribeRequests = db.collection('requests').onSnapshot(snap=>{
+    // La primera vez llegan todas las solicitudes que ya existían: esas no se avisan
+    if(!primeraCarga) avisarSolicitudesNuevas(snap);
+    primeraCarga = false;
     data.requests = snap.docs.map(d=>({ id: d.id, ...d.data() }));
     refreshAll();
     setConn(true);

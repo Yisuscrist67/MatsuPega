@@ -127,3 +127,14 @@ input[type=month]{background:var(--surface);border:1px solid var(--line);color:v
 .install-tip{position:fixed;left:12px;right:12px;bottom:12px;z-index:60;max-width:480px;margin:0 auto;display:flex;align-items:center;gap:10px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-left:3px solid var(--rust);border-radius:2px;padding:10px 12px;font-size:13px;}
 .install-tip b{color:var(--canvas);}
 .install-tip-close{margin-left:auto;background:none;border:none;color:var(--ink-dim);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;}
+
+/* Prioridad de las solicitudes (según quién pide) */
+.prio{display:inline-block;font-family:'IBM Plex Sans';font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 7px;border-radius:2px;margin-left:6px;vertical-align:middle;}
+.prio.prio-alta{background:#7A1F1F;color:#FFE1DC;}
+.prio.prio-media{background:var(--amber-dim);color:#FBEFCF;}
+.card.prio-alta:not(.done){border-left-color:#E0473A;}
+.card.prio-media:not(.done){border-left-color:var(--amber);}
+
+/* Ventana corta (aviso de horario) */
+.modal.modal-chico{max-width:420px;margin-top:12vh;}
+.modal-texto{color:var(--ink-dim);font-size:14.5px;line-height:1.5;margin:0 0 18px;}
